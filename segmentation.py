@@ -9,7 +9,6 @@ from pathlib import Path
 from tqdm import tqdm
 import logging
 from dataclasses import dataclass
-from functools import lru_cache
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -210,75 +209,22 @@ def process_audio_files(directory: str, k: int) -> Dict[str, Dict]:
         raise RuntimeError(f"Processing failed: {str(e)}") from e
 
 def save_audio_chunks(chunks: List[np.ndarray], sr: int, output_dir: str, piece_name: str, segment_labels: np.ndarray) -> None:
-    """
-    Save audio chunks to disk, organized into subfolders by piece and cluster.
+    """Save audio chunks to disk, organized into subfolders by piece and cluster."""
+    # Create output directory for the piece if it doesn't exist
+    piece_dir = os.path.join(output_dir, piece_name)
+    os.makedirs(piece_dir, exist_ok=True)
     
-    Args:
-        chunks: List of audio segments to save
-        sr: Sample rate of the audio
-        output_dir: Base output directory
-        piece_name: Name of the musical piece
-        segment_labels: Cluster labels for each segment
+    # Save each chunk in its corresponding cluster subfolder
+    for i, chunk in enumerate(chunks):
+        # Get the cluster label for this chunk
+        cluster_label = segment_labels[i]
         
-    Raises:
-        ValueError: If invalid parameters are provided
-        RuntimeError: If saving fails
-    """
-    if not chunks:
-        logger.warning("No chunks to save")
-        return
-    if sr <= 0:
-        raise ValueError("Sample rate must be positive")
-    if not segment_labels or len(segment_labels) != len(chunks):
-        raise ValueError("Segment labels must match chunks")
-    
-    try:
-        # Create output directory for the piece
-        piece_dir = os.path.join(output_dir, piece_name)
-        os.makedirs(piece_dir, exist_ok=True)
+        # Create a subfolder for this cluster
+        cluster_dir = os.path.join(piece_dir, f"cluster_{cluster_label}")
+        os.makedirs(cluster_dir, exist_ok=True)
         
-        # Save chunks with progress tracking
-        for i, chunk in enumerate(tqdm(chunks, desc=f"Saving {piece_name} chunks", leave=False)):
-            try:
-                # Get cluster label and create subfolder
-                cluster_label = segment_labels[i]
-                cluster_dir = os.path.join(piece_dir, f"cluster_{cluster_label}")
-                os.makedirs(cluster_dir, exist_ok=True)
-                
-                # Create output path with format based on chunk size
-                format = 'wav' if len(chunk) < 1000000 else 'flac'  # Use FLAC for larger files
-                output_path = os.path.join(cluster_dir, f"chunk_{i}.{format}")
-                
-                # Save with appropriate format and compression
-                sf.write(output_path, chunk, sr, format=format)
-                
-                # Explicit cleanup
-                del chunk
-                
-            except Exception as e:
-                logger.error(f"Error saving chunk {i}: {str(e)}")
-                continue
-                
-    except Exception as e:
-        logger.error(f"Error saving audio chunks: {str(e)}")
-        raise RuntimeError(f"Error saving audio chunks: {str(e)}") from e
-
-if __name__ == "__main__":
-    AUDIO_DIR = Path("Piano Piece/example_audio")
-    OUTPUT_DIR = Path("Piano Piece/Segmented_Audio")
-    
-    try:
-        CONFIG.validate()
-        results = process_audio_files(str(AUDIO_DIR), k=8)
+        # Create the output path with cluster subfolder
+        output_path = os.path.join(cluster_dir, f"chunk_{i}.wav")
         
-        for piece_name, data in results.items():
-            segments = data['segments']
-            sr = data['sr']
-            
-            for feature_name, labels in tqdm(data['cluster_labels'].items(), 
-                                          desc=f"Saving {piece_name}"):
-                feature_output_dir = OUTPUT_DIR / feature_name
-                save_audio_chunks(segments, sr, str(feature_output_dir), piece_name, labels)
-                
-    except Exception as e:
-        logger.error(f"Processing failed: {str(e)}")
+        # Save the chunk
+        sf.write(output_path, chunk, sr)

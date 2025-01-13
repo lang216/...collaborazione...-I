@@ -19,7 +19,7 @@ config = AudioConfig(
 
 # Input/output directories
 input_dir = Path(__file__).parent / "Raw Piano Materials"
-output_dir = Path("example_output")
+output_dir = Path(__file__).parent / "Segmented_Audio"
 
 # Process audio files
 try:
