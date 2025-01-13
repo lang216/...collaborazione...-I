@@ -1,6 +1,6 @@
 # Audio Segmentation and Feature Analysis
 
-This project provides tools for segmenting audio files based on musical features and clustering similar segments. It's particularly useful for analyzing piano compositions and identifying patterns in musical structure.
+This project provides tools for segmenting audio files based on musical features and clustering similar segments. It is specifically designed for a Piano+Electronics piece written for Yuseok Seol, aiming to analyze and organize the audio material for further composition and sound design.
 
 ## Features
 
@@ -30,7 +30,7 @@ Place your audio files in the `input_audio` directory (WAV format recommended).
 
 Run the segmentation:
 ```bash
-python test.py
+python segmentation.py
 ```
 
 Output will be saved in `output_segments` organized by:
@@ -40,7 +40,7 @@ Output will be saved in `output_segments` organized by:
 
 ## Configuration
 
-Edit `test.py` to adjust:
+Edit `segmentation.py` to adjust:
 - Audio processing parameters (sample rate, hop length, etc.)
 - Number of clusters
 - Input/output directories
