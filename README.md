@@ -25,7 +25,6 @@
 | Audio Processing | Load and process audio files with caching |
 | Feature Extraction | Extract MFCC, spectral, and chroma features |
 | Parallel Processing | Optimized for multi-core CPUs |
-| Resource Monitoring | Real-time CPU and memory monitoring |
 | Error Handling | Comprehensive validation and error recovery |
 | Output Organization | Structured output of processed audio chunks |
 

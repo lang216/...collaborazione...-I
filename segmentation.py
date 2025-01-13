@@ -1,7 +1,7 @@
 import numpy as np
 import librosa
 import os
-from typing import Tuple, List, Dict, Any, Optional
+from typing import Tuple, List, Dict, Any, Optional, Union
 from sklearn.cluster import AgglomerativeClustering
 from joblib import Parallel, delayed, Memory
 import soundfile as sf
@@ -26,7 +26,7 @@ class AudioConfig:
     hop_length: int = 512
     n_mfcc: int = 20
     n_chroma: int = 12
-    onset_params: Dict = None
+    onset_params: Dict[str, Union[int, float]] = None
     
     def __post_init__(self):
         self.onset_params = self.onset_params or {
