@@ -6,8 +6,6 @@
 
 > Audio segmentation and feature analysis tool for Piano+Electronics composition
 
-![Project Banner](./assets/banner.png) *(add your banner image in assets/)*
-
 ## Table of Contents
 - [Features](#features)
 - [Quick Start](#quick-start)
@@ -75,18 +73,6 @@ pytest tests/
 - Use type hints
 - Write docstrings for all public methods
 - Keep functions small and focused
-
-## Roadmap
-
-### v1.1.0
-- [ ] Add GUI interface
-- [ ] Support for additional audio formats
-- [ ] Export analysis results as MIDI
-
-### v1.2.0
-- [ ] Real-time audio processing
-- [ ] Integration with DAWs
-- [ ] Machine learning-based segmentation
 
 ## Installation
 
