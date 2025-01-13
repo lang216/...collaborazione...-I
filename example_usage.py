@@ -35,7 +35,7 @@ output_dir = Path(__file__).parent / "Segmented_Audio"
 # Process audio files
 try:
     print("Processing audio files...")
-    results = process_audio_files(str(input_dir), k=5)
+    results = process_audio_files(str(input_dir), k=8)
     
     # Save results
     for piece_name, data in results.items():
