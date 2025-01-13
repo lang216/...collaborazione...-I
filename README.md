@@ -15,7 +15,6 @@
   - [Configuration Options](#configuration-options)
   - [Command Line Usage](#command-line-usage)
 - [Development](#development)
-- [Roadmap](#roadmap)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 - [Contributing](#contributing)
