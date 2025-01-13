@@ -264,7 +264,7 @@ def save_audio_chunks(chunks: List[np.ndarray], sr: int, output_dir: str, piece_
         raise RuntimeError(f"Error saving audio chunks: {str(e)}") from e
 
 if __name__ == "__main__":
-    AUDIO_DIR = Path("Piano Piece/Raw Piano Materials")
+    AUDIO_DIR = Path("Piano Piece/example_audio")
     OUTPUT_DIR = Path("Piano Piece/Segmented_Audio")
     
     try:

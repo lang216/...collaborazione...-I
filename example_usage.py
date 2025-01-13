@@ -5,7 +5,7 @@ This script demonstrates how to use the audio segmentation and feature analysis
 functionality from test.py in your own projects.
 """
 
-from test import AudioConfig, process_audio_files, save_audio_chunks
+from segmentation import AudioConfig, process_audio_files, save_audio_chunks
 from pathlib import Path
 
 # Configuration
@@ -13,12 +13,12 @@ config = AudioConfig(
     sr=44100,  # Sample rate
     mono=True,  # Mono audio
     hop_length=512,  # Hop length for analysis
-    n_mfcc=20,  # Number of MFCC coefficients
+    n_mfcc=20,  # Number of MFCC coefficientss
     n_chroma=12  # Number of chroma features
 )
 
 # Input/output directories
-input_dir = Path("example_audio")
+input_dir = Path(__file__).parent / "Raw Piano Materials"
 output_dir = Path("example_output")
 
 # Process audio files
