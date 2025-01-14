@@ -23,25 +23,29 @@
 
 | Feature | Description |
 |---|---|
-| Audio Processing | Load and process audio files with caching |
-| Feature Extraction | Extract MFCC, spectral, and chroma features |
-| Parallel Processing | Optimized for multi-core CPUs |
-| Error Handling | Comprehensive validation and error recovery |
-| Output Organization | Structured output of processed audio chunks |
+| Audio Loading | Loads audio files with caching using joblib |
+| Onset Detection | Detects note onsets to segment audio |
+| Feature Extraction | Extracts MFCC, spectral centroid, spectral flatness, and RMS features |
+| Parallel Processing | Utilizes multi-core CPUs for faster feature extraction |
+| Configuration | Customizable audio processing parameters via `AudioConfig` |
+| Output Organization | Saves segmented audio chunks organized by feature and cluster |
+| Filtering | Filters out short audio segments |
+| Testing | Includes unit tests for core functionality |
 
 ## Quick Start
 
 ```python
-from segmentation import AudioProcessor
+from segmentation import process_audio_files, AudioConfig, save_audio_chunks
 
-# Initialize processor with default settings
-processor = AudioProcessor()
+# Configure processing
+config = AudioConfig()
 
-# Process audio file
-results = processor.analyze("path/to/audio.wav")
+# Process audio files
+results = process_audio_files("Piano Piece with Electronics/Raw Piano Materials", k=3)
 
-# Save segmented audio
-processor.save_segments(results, "output_directory")
+# Example of saving the segmented audio
+for piece_name, data in results.items():
+    save_audio_chunks(data['segments'], data['sr'], "Piano Piece with Electronics/Segmented_Audio", piece_name, data['cluster_labels'])
 ```
 
 ## Installation
@@ -68,6 +72,11 @@ processor.save_segments(results, "output_directory")
 
 ```python
 from segmentation import process_audio_files, save_audio_chunks, AudioConfig
+from pathlib import Path
+
+# Define paths
+audio_dir = Path("Piano Piece with Electronics/Raw Piano Materials")
+output_dir = Path("Piano Piece with Electronics/Segmented_Audio")
 
 # Configure processing
 config = AudioConfig(
@@ -75,43 +84,38 @@ config = AudioConfig(
     mono=True,
     hop_length=512,
     n_mfcc=20,
-    n_chroma=12,
-    max_workers=4
 )
 
 # Process audio files
-results = process_audio_files("path/to/audio/files", k=8)
+results = process_audio_files(audio_dir, k=8)
 
 # Save results
 for piece_name, data in results.items():
-    save_audio_chunks(
-        data['segments'],
-        data['sr'],
-        "output/directory",
-        piece_name,
-        data['cluster_labels']['mfcc']
-    )
+    feature_dir = output_dir / piece_name
+    save_audio_chunks(data['segments'], data['sr'], feature_dir, piece_name, data['cluster_labels'])
 ```
 
 ### Configuration Options
 
 The `AudioConfig` class provides validated configuration options:
 
-- `sr`: Sample rate (default: None)
+- `sr`: Sample rate (optional, default: None)
 - `mono`: Convert to mono (default: True)
 - `hop_length`: Hop length for analysis (default: 512)
+- `n_fft`: FFT window size (default: 2048)
 - `n_mfcc`: Number of MFCC coefficients (default: 20)
 - `n_chroma`: Number of chroma bins (default: 12)
-- `max_workers`: Maximum parallel workers (default: CPU count - 1)
-- `max_memory`: Maximum memory usage in MB (default: None)
+- `onset_params`: Dictionary of parameters for onset detection
 
 ### Command Line Usage
 
-Run the example script:
+To run the audio segmentation tool, execute the example usage script:
 
 ```bash
-python example_usage.py
+python Piano Piece with Electronics/example_usage.py
 ```
+
+This script will process the audio files located in the `Raw Piano Materials` directory, segment them, extract features, and save the segmented audio in the `Segmented_Audio` directory.
 
 ## Development
 

@@ -10,13 +10,14 @@ Usage:
 The script will:
 1. Load audio files from Raw_Piano_Materials directory
 2. Process them using the segmentation pipeline
-3. Save segmented audio chunks to Segmented_Audio directory
-4. Organize chunks by feature type and cluster labels
+3. Filter out short audio chunks
+4. Save filtered audio chunks to Segmented_Audio directory
+5. Organize chunks by feature type and cluster labels
 
 Configuration can be modified in the AudioConfig instance.
 """
 
-from segmentation import AudioConfig, process_audio_files, save_audio_chunks
+from segmentation import AudioConfig, AudioFeatureExtractor, process_audio_files, save_audio_chunks
 from pathlib import Path
 
 # Configuration
@@ -28,6 +29,9 @@ config = AudioConfig(
     n_chroma=12  # Number of chroma features
 )
 
+# Create feature extractor instance
+feature_extractor = AudioFeatureExtractor(config)
+
 # Input/output directories
 input_dir = Path(__file__).parent / "Raw Piano Materials"
 output_dir = Path(__file__).parent / "Segmented_Audio"
@@ -37,7 +41,7 @@ try:
     print("Processing audio files...")
     results = process_audio_files(str(input_dir), k=8)
     
-    # Save results
+    # Save results first
     for piece_name, data in results.items():
         print(f"Saving {piece_name}...")
         segments = data['segments']
@@ -48,6 +52,10 @@ try:
             feature_output_dir = output_dir / feature_name
             save_audio_chunks(segments, sr, str(feature_output_dir), piece_name, labels)
             
+    # Filter short chunks after saving
+    print("Filtering short audio chunks...")
+    feature_extractor.filter_short_chunks(str(output_dir), min_duration=0.5)
+    
     print("Processing complete! Results saved to:", output_dir)
     
 except FileNotFoundError as e:
