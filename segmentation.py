@@ -27,7 +27,6 @@ class AudioConfig:
     hop_length: int = 512
     n_fft: int = 2048  # Default FFT window size
     n_mfcc: int = 20
-    n_chroma: int = 12
     onset_params: Dict[str, Union[int, float]] = None
     
     def __post_init__(self):
@@ -43,7 +42,6 @@ class AudioConfig:
     def validate(self):
         """Validate configuration parameters."""
         assert self.n_mfcc > 0, "n_mfcc must be positive"
-        assert self.n_chroma > 0, "n_chroma must be positive"
         assert self.hop_length > 0, "hop_length must be positive"
 
 CONFIG = AudioConfig()
@@ -65,7 +63,7 @@ def detect_onsets(audio: np.ndarray, sr: int) -> np.ndarray:
         y=audio, 
         sr=sr,
         hop_length=CONFIG.hop_length,
-        aggregate=np.median
+        # aggregate=np.mean
     )
     
     onset_frames = librosa.onset.onset_detect(
@@ -103,8 +101,6 @@ class AudioFeatureExtractor:
             return np.mean(librosa.feature.spectral_flatness(y=segment, n_fft=config.n_fft))
         elif feature_type == 'rms':
             return np.mean(librosa.feature.rms(y=segment, frame_length=config.n_fft))
-        # elif feature_type == 'chroma':
-        #     return np.mean(librosa.feature.chroma_stft(y=segment, sr=sr, n_chroma=config.n_chroma), axis=1)
     
     def extract_segment_features(self, segment: np.ndarray, sr: int) -> Dict[str, np.ndarray]:
         """
@@ -144,11 +140,20 @@ class AudioFeatureExtractor:
             logger.error(f"Feature extraction failed: {str(e)}")
             raise RuntimeError(f"Feature extraction failed: {str(e)}") from e
 
-    def filter_short_chunks(self, input_dir, min_duration=0.2):
-        """Filters audio files in directory, copying only those longer than min_duration.
-        Creates new directory with '_filtered' suffix and maintains original structure."""
+    def filter_chunk_durations(self, input_dir, min_duration=0.2, max_duration=2.0, min_files=3):
+        """Filters audio files in directory based on duration constraints.
+        
+        Args:
+            input_dir: Input directory containing audio files
+            min_duration: Minimum duration in seconds (default: 0.2)
+            max_duration: Maximum duration in seconds (default: 2.0)
+            min_files: Minimum number of files per cluster (default: 3)
+            
+        Creates new directory with '_filtered' suffix and maintains original structure.
+        Removes clusters containing fewer than min_files after filtering.
+        """
         input_path = Path(input_dir)
-        output_path = input_path.parent / f"{input_path.name}_filtered"
+        output_path = input_path.parent / f"{input_path.name}_Filtered"
 
         if not input_path.exists():
             logger.error(f"Input directory does not exist: {input_path}")
@@ -171,7 +176,7 @@ class AudioFeatureExtractor:
             try:
                 # Get audio duration without loading the entire file
                 duration = librosa.get_duration(path=item)
-                if duration >= min_duration:
+                if min_duration <= duration <= max_duration:
                     # Create corresponding directory in output
                     relative_path = item.relative_to(input_path)
                     output_file_path = output_path / relative_path
@@ -185,10 +190,44 @@ class AudioFeatureExtractor:
                 skipped_files += 1
                 logger.error(f"Error processing {item}: {e}")
 
-        logger.info(f"Filtering complete. Processed {total_files} files: "
-                   f"{copied_files} copied, {skipped_files} skipped")
+        # Remove cluster folders with fewer than min_files
+        removed_clusters = 0
+        for feature_type in os.listdir(output_path):
+            feature_path = os.path.join(output_path, feature_type)
+            if not os.path.isdir(feature_path):
+                continue
+                
+            for piece_name in os.listdir(feature_path):
+                piece_path = os.path.join(feature_path, piece_name)
+                if not os.path.isdir(piece_path):
+                    continue
+                    
+                for cluster in os.listdir(piece_path):
+                    cluster_path = os.path.join(piece_path, cluster)
+                    if not os.path.isdir(cluster_path):
+                        continue
+                        
+                    # Count .wav files in cluster folder
+                    wav_files = [f for f in os.listdir(cluster_path) 
+                               if f.endswith('.wav')]
+                    
+                    if len(wav_files) < min_files:
+                        try:
+                            shutil.rmtree(cluster_path)
+                            removed_clusters += 1
+                            logger.info(f"Removed cluster {cluster_path} with {len(wav_files)} files")
+                        except Exception as e:
+                            logger.error(f"Error removing cluster {cluster_path}: {e}")
 
-def process_audio_files(directory: str, k: int) -> Dict[str, Dict]:
+        logger.info(f"Filtering complete. Processed {total_files} files: "
+                   f"{copied_files} copied, {skipped_files} skipped. "
+                   f"Removed {removed_clusters} clusters with fewer than {min_files} files.")
+
+def process_audio_files(
+    directory: str, 
+    k: int,
+    fade_duration: float = 0.1  # Add fade_duration parameter
+) -> Dict[str, Dict]:
     """
     Process audio files in directory, extracting features and clustering segments.
     
@@ -278,8 +317,43 @@ def process_audio_files(directory: str, k: int) -> Dict[str, Dict]:
         logger.error(f"Processing failed: {str(e)}")
         raise RuntimeError(f"Processing failed: {str(e)}") from e
 
-def save_audio_chunks(chunks: List[np.ndarray], sr: int, output_dir: str, piece_name: str, segment_labels: np.ndarray) -> None:
-    """Save audio chunks to disk, organized into subfolders by piece and cluster."""
+def apply_fade(audio: np.ndarray, fade_duration: float = 0.02, sr: int = 48000) -> np.ndarray:
+    """Apply fade in and fade out to audio segment.
+    
+    Args:
+        audio: Audio segment to apply fades to
+        fade_duration: Duration of fade in seconds
+        sr: Sample rate
+        
+    Returns:
+        Audio with fades applied
+    """
+    fade_length = int(fade_duration * sr)
+    
+    # Ensure fade length isn't longer than half the audio
+    if len(audio) < 2 * fade_length:
+        fade_length = len(audio) // 4
+    
+    # Create fade curves
+    fade_in = np.linspace(0, 1, fade_length)
+    fade_out = np.linspace(1, 0, fade_length)
+    
+    # Apply fades
+    audio = audio.copy()  # Create a copy to avoid modifying original
+    audio[:fade_length] *= fade_in
+    audio[-fade_length:] *= fade_out
+    
+    return audio
+
+def save_audio_chunks(
+    chunks: List[np.ndarray], 
+    sr: int, 
+    output_dir: str, 
+    piece_name: str, 
+    segment_labels: np.ndarray,
+    fade_duration: float = 0.02  # 20ms fade by default
+) -> None:
+    """Save audio chunks to disk with fades, organized into subfolders by piece and cluster."""
     # Create output directory for the piece if it doesn't exist
     piece_dir = os.path.join(output_dir, piece_name)
     os.makedirs(piece_dir, exist_ok=True)
@@ -296,5 +370,8 @@ def save_audio_chunks(chunks: List[np.ndarray], sr: int, output_dir: str, piece_
         # Create the output path with cluster subfolder
         output_path = os.path.join(cluster_dir, f"chunk_{i}.wav")
         
+        # Apply fades to the chunk
+        faded_chunk = apply_fade(chunk, fade_duration=fade_duration, sr=sr)
+        
         # Save the chunk
-        sf.write(output_path, chunk, sr)
+        sf.write(output_path, faded_chunk, sr)

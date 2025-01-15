@@ -1,0 +1,29 @@
+{
+    "audio": {
+        "sr": 44100,
+        "mono": true,
+        "hop_length": 1024,
+        "n_fft": 1024
+    },
+    "features": {
+        "n_mfcc": 13
+    },
+    "segmentation": {
+        "min_duration": 0.2,
+        "max_duration": 2.0,
+        "k_clusters": 5
+    },
+    "freesound": {
+        "duration_multiplier": 1.5,
+        "max_parallel_searches": 4,
+        "min_results_per_file": 3,
+        "output_subfolder_format": "{feature_type}/{piece_name}/cluster_{cluster_id}"
+    },
+    "paths": {
+        "input_dir": "Raw Piano Materials",
+        "segments_dir": "Segmented_Audio",
+        "filtered_segments_dir_2": "Segmented_Audio_Filtered",
+        "filtered_segments_dir": "test_folder",
+        "freesound_dir": "Freesound_Matches"
+    }
+} 
