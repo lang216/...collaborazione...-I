@@ -127,12 +127,6 @@ Freesound results are stored in `Freesound_Results` with subdirectories matching
 
 ## Development
 
-### Running Tests
-
-```bash
-pytest tests/
-```
-
 ### Code Style
 
 - Follow PEP 8 guidelines
