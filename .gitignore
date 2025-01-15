@@ -30,3 +30,6 @@ ENV/
 
 # Cache
 .cache/
+
+# Deprecated code
+deprecated/
