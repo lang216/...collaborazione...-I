@@ -70,10 +70,10 @@ Edit `config.json` to customize processing parameters:
 ```json
 {
   "paths": {
-    "input_dir": "Raw Piano Materials",
-    "segments_dir": "Segmented_Audio",
-    "filtered_segments_dir": "Segmented_Audio_Filtered",
-    "freesound_dir": "Freesound_Results"
+    "input_dir": "audio/Audio_Raw_Materials",
+    "segments_dir": "audio/Segmented_Audio",
+    "filtered_segments_dir": "audio/Segmented_Audio_Filtered",
+    "freesound_dir": "tests/Freesound_Matches_Test"
   },
   "segmentation": {
     "k_clusters": 5,
@@ -93,11 +93,11 @@ Edit `config.json` to customize processing parameters:
 Run the main processing pipeline:
 
 ```bash
-python main.py
+python src/main.py
 ```
 
 This will:
-1. Process all WAV files in the `Raw Piano Materials` directory
+1. Process all WAV files in the `audio/Audio_Raw_Materials` directory
 2. Save segmented audio chunks organized by feature type and cluster
 3. Filter chunks based on duration requirements
 4. Search Freesound for complementary sounds using filtered chunks
@@ -107,23 +107,15 @@ This will:
 Processed audio is organized in the following directory structure:
 
 ```
-Segmented_Audio/
-├── mfcc/
-│   ├── piano_piece_0/
-│   │   ├── cluster_0/
-│   │   ├── cluster_1/
-│   │   └── ...
-│   └── piano_piece_1/
-│       ├── cluster_0/
-│       └── ...
-├── spectral_centroid/
-├── spectral_flatness/
-└── rms/
+audio/
+├── Audio_Raw_Materials/          # Input piano recordings
+├── Segmented_Audio/              # Initial segmentation results
+└── Segmented_Audio_Filtered/     # Filtered segments after clustering
+
+tests/
+├── filtered_segments_dir_test/   # Test filtered segments
+└── Freesound_Matches_Test/       # Freesound search results
 ```
-
-Filtered audio chunks are stored in `Segmented_Audio_Filtered` with the same structure.
-
-Freesound results are stored in `Freesound_Results` with subdirectories matching the input file names.
 
 ## Development
 
@@ -133,10 +125,6 @@ Freesound results are stored in `Freesound_Results` with subdirectories matching
 - Use type hints
 - Write docstrings for all public methods
 - Keep functions small and focused
-
-## License
-
-MIT License
 
 ## Contributing
 
