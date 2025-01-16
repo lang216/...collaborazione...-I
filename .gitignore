@@ -1,35 +1,48 @@
-# Environment variables
+# Environment files
 .env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Python
+# Python compiled files
 __pycache__/
 *.py[cod]
 *$py.class
-.Python
 *.so
 
 # Distribution / packaging
 dist/
 build/
 *.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Virtual environments
-venv/
-env/
-ENV/
-
-# IDE
+# IDE files
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Audio files
-*.wav
-*.mp3
+# Audio processing outputs
+audio/Segmented_Audio/
+audio/Segmented_Audio_Filtered/
+tests/filtered_segments_dir_test/
+tests/Freesound_Matches_Test/
 
-# Cache
+# Cache and temp files
 .cache/
+.pytest_cache/
+.mypy_cache/
 
-# Deprecated code
-deprecated/
+# Logs and local settings
+*.log
+local_settings.py
+db.sqlite3
+
+# Documentation
+docs/_build/
+/site

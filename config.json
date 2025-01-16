@@ -9,9 +9,9 @@
         "n_mfcc": 13
     },
     "segmentation": {
-        "min_duration": 0.2,
-        "max_duration": 2.0,
-        "k_clusters": 5
+        "min_duration": 0.8,
+        "max_duration": 5.0,
+        "k_clusters": 8
     },
     "freesound": {
         "duration_multiplier": 1.5,
@@ -20,10 +20,11 @@
         "output_subfolder_format": "{feature_type}/{piece_name}/cluster_{cluster_id}"
     },
     "paths": {
-        "input_dir": "Raw Piano Materials",
-        "segments_dir": "Segmented_Audio",
-        "filtered_segments_dir_2": "Segmented_Audio_Filtered",
-        "filtered_segments_dir": "test_folder",
-        "freesound_dir": "Freesound_Matches"
+        "input_dir": "audio/Audio_Raw_Materials",
+        "segments_dir": "audio/Segmented_Audio",
+        "filtered_segments_dir": "audio/Segmented_Audio_Filtered",
+        "filtered_segments_dir_test": "tests/Filtered_Segments_Dir_Test",
+        "freesound_dir": "audio/Freesound_Matches",
+        "freesound_dir_test": "tests/Freesound_Matches_Test"
     }
-} 
+}
