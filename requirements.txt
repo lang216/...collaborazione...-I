@@ -5,6 +5,8 @@ joblib>=1.1.0
 soundfile>=0.12.1
 tqdm>=4.65.0
 python-dotenv>=1.0.0
-freesound-python>=1.0.0
+freesound-python
 requests>=2.31.0
 pathlib>=1.0.1
+midiutil
+pretty_midi

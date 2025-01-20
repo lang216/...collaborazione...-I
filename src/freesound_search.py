@@ -390,8 +390,8 @@ def search_and_download(
 if __name__ == "__main__":
     # Example usage when run directly
     try:
-        input_folder = Path(__file__).parent / "filtered_segments_dir_test"
-        output_folder = Path(__file__).parent / "Freesound_Matches_Test"
+        input_folder = Path(__file__).parent.parent / "tests/filtered_segments_dir_test"
+        output_folder = Path(__file__).parent.parent / "tests/Freesound_Matches_Test"
         
         results = search_and_download(input_folder, output_folder)
         
