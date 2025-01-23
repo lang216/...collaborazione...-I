@@ -11,10 +11,10 @@
     "segmentation": {
         "min_duration": 0.8,
         "max_duration": 5.0,
-        "k_clusters": 8
+        "k_clusters": 5
     },
     "freesound": {
-        "duration_multiplier": 1.5,
+        "duration_multiplier": 1.2,
         "max_parallel_searches": 4,
         "min_results_per_file": 3,
         "output_subfolder_format": "{feature_type}/{piece_name}/cluster_{cluster_id}"

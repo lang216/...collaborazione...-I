@@ -1,6 +1,8 @@
 import numpy as np
 import librosa
+import audioflux as af
 import os
+from audioflux.type import SpectralFilterBankScaleType, SpectralDataType, NoveltyType
 from typing import Tuple, List, Dict, Any, Optional, Union
 from sklearn.cluster import AgglomerativeClustering
 from joblib import Parallel, delayed, Memory
@@ -27,17 +29,9 @@ class AudioConfig:
     hop_length: int = 512
     n_fft: int = 2048  # Default FFT window size
     n_mfcc: int = 20
-    onset_params: Dict[str, Union[int, float]] = None
     
     def __post_init__(self):
-        self.onset_params = self.onset_params or {
-            'pre_max': 30,
-            'post_max': 30,
-            'pre_avg': 100,
-            'post_avg': 100,
-            'delta': 0.2,
-            'wait': 30
-        }
+        pass
 
     def validate(self):
         """Validate configuration parameters."""
@@ -58,23 +52,31 @@ def load_audio(file_path: str) -> Tuple[np.ndarray, int]:
 
 @memory.cache
 def detect_onsets(audio: np.ndarray, sr: int) -> np.ndarray:
-    """Optimized onset detection with caching."""
-    onset_env = librosa.onset.onset_strength(
-        y=audio, 
-        sr=sr,
-        hop_length=CONFIG.hop_length,
-        # aggregate=np.mean
+    """Optimized onset detection with caching using audioflux."""
+    bft_obj = af.BFT(
+        num=128,
+        samplate=sr,
+        radix2_exp=11,
+        slide_length=2048,
+        scale_type=SpectralFilterBankScaleType.MEL,
+        data_type=SpectralDataType.POWER
     )
+    spec_arr = bft_obj.bft(audio)
+    spec_dB_arr = af.utils.power_to_db(np.abs(spec_arr))
     
-    onset_frames = librosa.onset.onset_detect(
-        onset_envelope=onset_env,
-        sr=sr,
-        hop_length=CONFIG.hop_length,
-        **CONFIG.onset_params
+    n_fre, n_time = spec_dB_arr.shape
+    onset_obj = af.Onset(
+        time_length=n_time,
+        fre_length=n_fre,
+        slide_length=bft_obj.slide_length,
+        samplate=sr,
+        novelty_type=NoveltyType.FLUX
     )
+    point_arr, evn_arr, time_arr, value_arr = onset_obj.onset(spec_dB_arr)
     
-    onset_times = librosa.frames_to_samples(onset_frames, hop_length=CONFIG.hop_length)
-    return np.append(onset_times, len(audio))
+    # Convert time points from seconds to samples and append audio length
+    onset_samples = (time_arr * sr).astype(int)
+    return np.append(onset_samples, len(audio))
 
 class AudioFeatureExtractor:
     def __init__(self, config: Optional[AudioConfig] = None):
@@ -226,7 +228,6 @@ class AudioFeatureExtractor:
 def process_audio_files(
     directory: str, 
     k: int,
-    fade_duration: float = 0.1  # Add fade_duration parameter
 ) -> Dict[str, Dict]:
     """
     Process audio files in directory, extracting features and clustering segments.
@@ -351,7 +352,7 @@ def save_audio_chunks(
     output_dir: str, 
     piece_name: str, 
     segment_labels: np.ndarray,
-    fade_duration: float = 0.02  # 20ms fade by default
+    fade_duration: float = 0.08  # 20ms fade by default
 ) -> None:
     """Save audio chunks to disk with fades, organized into subfolders by piece and cluster."""
     # Create output directory for the piece if it doesn't exist

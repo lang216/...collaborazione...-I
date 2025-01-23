@@ -37,8 +37,8 @@ try:
     # Get paths from config
     input_dir = Path(__file__).parent.parent / config_data["paths"]["input_dir"]
     segments_dir = Path(__file__).parent.parent / config_data["paths"]["segments_dir"]
-    filtered_dir = Path(__file__).parent.parent / config_data["paths"]["filtered_segments_dir_test"]
-    freesound_dir = Path(__file__).parent.parent / config_data["paths"]["freesound_dir_test"]
+    filtered_dir = Path(__file__).parent.parent / config_data["paths"]["filtered_segments_dir"]
+    freesound_dir = Path(__file__).parent.parent / config_data["paths"]["freesound_dir"]
     print("Processing audio files...")
     results = process_audio_files(str(input_dir), k=config_data["segmentation"]["k_clusters"])
     

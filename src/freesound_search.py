@@ -29,12 +29,12 @@ class AudioConfig:
     hop_length: int = 512
     
     # Search parameters
-    duration_multiplier: float = 1.5
+    duration_multiplier: float = 1.2
     max_parallel_searches: int = 4
     min_results_per_file: int = 5
     
     # Output parameters
-    output_subfolder_format: str = "{feature_type}/{piece_name}/cluster_{cluster_id}"
+    output_subfolder_format: str = r"{feature_type}/{piece_name}/cluster_{cluster_id}/chunk_{chunk_id}"
     
     def validate(self) -> None:
         """Validate configuration parameters."""
@@ -54,7 +54,7 @@ class FolderProcessor:
         self.config = config or AudioConfig()
         self.matcher = FreesoundMatcher(config=self.config)
     
-    def get_relative_output_path(self, input_path: Path, file_path: Path) -> Tuple[str, str, str]:
+    def get_relative_output_path(self, input_path: Path, file_path: Path) -> Tuple[str, str, str, str]:
         """Generate output path components preserving relative structure.
         
         Args:
@@ -62,28 +62,44 @@ class FolderProcessor:
             file_path: Full path to the audio file
             
         Returns:
-            Tuple of (feature_type, piece_name, cluster_id) for organizing output
+            Tuple of (feature_type, piece_name, cluster_id, chunk_id) for organizing output
             
         Example path:
             input: Segmented_Audio_filtered/mfcc/piano_piece_1/cluster_0/chunk_29.wav
-            returns: ("mfcc", "piano_piece_1", "cluster_0")
+            returns: ("mfcc", "piano_piece_1", "cluster_0", "chunk_29")
         """
         # Get relative path from input directory to file
         rel_path = file_path.relative_to(input_path)
         parts = rel_path.parts
+        # Always use file stem as chunk_id
+        chunk_id = Path(file_path).stem
         
-        # Expected structure: feature_type/piece_name/cluster_X/chunk_Y.wav
-        if len(parts) >= 4:
+        # Handle different path structures
+        if len(parts) >= 3:
+            # Standard structure: feature_type/piece_name/cluster_X/audio.wav
             feature_type = parts[0]    # e.g., mfcc
             piece_name = parts[1]      # e.g., piano_piece_1
             cluster_id = parts[2]      # e.g., cluster_0
+        elif len(parts) == 2:
+            # Shallow structure: piece_name/audio.wav
+            feature_type = "mixed_features"
+            piece_name = parts[0]
+            cluster_id = parts[1]
+        elif len(parts) == 1:
+            # Flat structure: audio.wav
+            feature_type = "mixed_features"
+            piece_name = "unknown_piece"
+            cluster_id = "unknown_cluster"
         else:
+            # Fallback for empty paths
             logger.warning(f"Unexpected path structure for {file_path}, using defaults")
             feature_type = "mixed_features"
-            piece_name = rel_path.parent.name
-            cluster_id = rel_path.stem
+            piece_name = rel_path.parent.name if rel_path.parent.name != "." else "unknown_piece"
+            cluster_id = rel_path.parent.stem if rel_path.parent.stem != "." else "unknown_cluster"
             
-        return feature_type, piece_name, cluster_id
+       
+            
+        return feature_type, piece_name, cluster_id, chunk_id
     
     def process_folder(self, input_path: Union[str, Path], output_folder: Union[str, Path]) -> Dict[str, Any]:
         """Process audio files in the input path.
@@ -133,18 +149,19 @@ class FolderProcessor:
         """Process a single audio file and save results."""
         try:
             # Generate output path components
-            feature_type, piece_name, cluster_id = self.get_relative_output_path(input_path, file_path)
+            feature_type, piece_name, cluster_id, chunk_id = self.get_relative_output_path(input_path, file_path)
             
             # Find matching sounds
             matching_sounds = self.matcher.match_sounds(file_path)
             
             if matching_sounds:
-                # Create output subfolder
-                output_subfolder = output_base / self.config.output_subfolder_format.format(
-                    feature_type=feature_type,
-                    piece_name=piece_name,
-                    cluster_id=cluster_id
-                )
+                # Create output subfolder with proper cluster/chunk structure
+                # Preserve original numeric IDs from input paths
+                cluster_num = cluster_id.split('_')[-1]  # Get numeric part after last underscore
+                chunk_num = chunk_id.split('_')[-1]      # Get numeric part after last underscore
+                
+                # Create output path using original directory structure
+                output_subfolder = output_base / feature_type / piece_name / f"cluster_{cluster_num}" / f"chunk_{chunk_num}"
                 output_subfolder.mkdir(parents=True, exist_ok=True)
                 
                 # Download sounds
@@ -176,6 +193,35 @@ class AudioFeatureExtractor:
             n_fft=self.config.n_fft,
             hop_length=self.config.hop_length
         )
+
+    def extract_rms(self, audio: np.ndarray) -> np.ndarray:
+        """
+        Extract RMS (Root Mean Square) energy from audio.
+        
+        Args:
+            audio: Input audio signal
+            
+        Returns:
+            RMS energy for each frame
+            
+        Raises:
+            ValueError: If audio is empty or invalid
+        """
+        if audio.size == 0:
+            raise ValueError("Audio cannot be empty")
+            
+        if len(audio.shape) > 1:
+            audio = np.mean(audio, axis=1)  # Convert to mono
+            
+        try:
+            return librosa.feature.rms(
+                y=audio,
+                frame_length=self.config.n_fft,
+                hop_length=self.config.hop_length
+            )
+        except Exception as e:
+            logger.error(f"Error extracting RMS: {e}")
+            raise
 
     def extract_spectral_features(
         self, 
@@ -261,13 +307,13 @@ class FreesoundMatcher:
             "target": search_target,
             "fields": "id,name,previews,analysis,duration",
             "descriptors": ",".join(features.keys()),
-            "filter": f"duration:[0 TO {duration * self.config.duration_multiplier}]"
+            "filter": f"duration:[{duration} TO {duration * self.config.duration_multiplier}]"
         }
 
     def match_sounds(self, file_path: Union[str, Path]) -> List[Dict]:
         """Find matching sounds on Freesound."""
         # Add random delay between 1.3 and 2.1 seconds
-        time.sleep(random.uniform(1.3, 2.1))
+        time.sleep(random.uniform(0.8, 1.3))
         
         # Load and process audio
         audio, sr = librosa.load(
@@ -279,10 +325,12 @@ class FreesoundMatcher:
         
         # Extract features
         mfcc = self.feature_extractor.extract_mfcc(audio, sr)
+        rms = self.feature_extractor.extract_rms(audio)
         centroid, flatness = self.feature_extractor.extract_spectral_features(audio, sr)
         
         # Compute statistics
         mfcc_mean, mfcc_var = self.feature_extractor.compute_statistics(mfcc)
+        rms_mean, rms_var = self.feature_extractor.compute_statistics(rms)
         cent_mean, cent_var = self.feature_extractor.compute_statistics(centroid)
         flat_mean, flat_var = self.feature_extractor.compute_statistics(flatness)
         
@@ -290,6 +338,8 @@ class FreesoundMatcher:
         features = {
             "lowlevel.mfcc.mean": mfcc_mean,
             "lowlevel.mfcc.var": mfcc_var,
+            "lowlevel.rms.mean": rms_mean,
+            "lowlevel.rms.var": rms_var,
             "lowlevel.spectral_centroid.mean": cent_mean,
             "lowlevel.spectral_centroid.var": cent_var,
             "lowlevel.spectral_flatness.mean": flat_mean,
@@ -324,12 +374,28 @@ def download_sound(sound: Dict[str, Any], output_dir: Path) -> Optional[Path]:
     try:
         output_dir.mkdir(parents=True, exist_ok=True)
         # Remove .mp3 extension since it's already in the filename
-        output_file = output_dir / f"{sound['id']}_{sound['name']}"
+        # Create unique filename while preserving existing extension
+        original_name = Path(sound['name'])
+        # Use original chunk ID from processing
+        clean_name = original_name.stem.replace(" ", "_").replace("-", "_")[:50]
+        timestamp = int(time.time() * 1000)
+        # Extract original IDs from input path components
+        # Get original input path components from the source file structure
+        input_parts = output_dir.parts[-4:]  # [feature_type, piece_name, cluster_X, chunk_Y]
+        cluster_num = input_parts[2].split('_')[-1]  # Just the numeric cluster ID
+        chunk_num = input_parts[3].split('chunk_')[-1]  # Just the numeric chunk ID
+        output_file = output_dir / f"{chunk_num}_{sound['id']}_{clean_name}_{timestamp}{original_name.suffix}"
+        # Add .mp3 if no extension present
+        if not output_file.suffix:
+            output_file = output_file.with_suffix(".mp3")
         
         response = requests.get(sound['preview_url'])
         if response.status_code == 200:
-            output_file.write_bytes(response.content)
-            logger.info(f"Downloaded sound to: {output_file}")
+            if not output_file.exists():
+                output_file.write_bytes(response.content)
+                logger.info(f"Downloaded sound to: {output_file}")
+            else:
+                logger.warning(f"Skipping existing file: {output_file}")
             return output_file
     except Exception as e:
         logger.error(f"Failed to download sound: {str(e)}")
@@ -365,7 +431,7 @@ def search_and_download(
                 n_mfcc=13,
                 duration_multiplier=1.5,
                 max_parallel_searches=4,
-                min_results_per_file=3
+                min_results_per_file=1
             )
         
         # Process folder or file
@@ -387,14 +453,14 @@ def search_and_download(
         logger.error(f"Error in Freesound search: {e}")
         raise
 
-if __name__ == "__main__":
-    # Example usage when run directly
-    try:
-        input_folder = Path(__file__).parent.parent / "tests/filtered_segments_dir_test"
-        output_folder = Path(__file__).parent.parent / "tests/Freesound_Matches_Test"
+# if __name__ == "__main__":
+#     # Example usage when run directly
+#     try:
+#         input_folder = Path(__file__).parent.parent / "tests/filtered_segments_dir_test"
+#         output_folder = Path(__file__).parent.parent / "tests/Freesound_Matches_Test"
         
-        results = search_and_download(input_folder, output_folder)
+#         results = search_and_download(input_folder, output_folder)
         
-    except Exception as e:
-        logger.error(f"Error in main execution: {e}")
-        raise 
+#     except Exception as e:
+#         logger.error(f"Error in main execution: {e}")
+#         raise
