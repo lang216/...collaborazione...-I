@@ -1,10 +1,13 @@
-#!/usr/bin/env python3
 import os
 import hashlib
-import argparse
 import logging
 import shutil
 from collections import defaultdict
+from .shared_utils import (
+    setup_logging,
+    validate_directory,
+    AudioScriptArgumentParser
+)
 
 def calculate_md5(filepath, chunk_size=8192):
     """Calculate MD5 hash of a file"""
@@ -52,8 +55,8 @@ def find_duplicates(directory):
 def copy_uniques(directory, duplicates):
     """Copy unique files to new folder with flat structure"""
     # Create output directory
-    base_dir = os.path.dirname(directory.rstrip(os.sep))
-    dir_name = os.path.basename(directory.rstrip(os.sep))
+    base_dir = os.path.dirname(str(directory).rstrip(os.sep))
+    dir_name = os.path.basename(str(directory).rstrip(os.sep))
     output_dir = os.path.join(base_dir, f"{dir_name}_unique")
     
     try:
@@ -94,26 +97,23 @@ def copy_uniques(directory, duplicates):
     
     logging.info(f"Total unique files copied: {copied_count}")
 
-def setup_logging(log_file='duplicates.log'):
-    """Configure logging"""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s %(levelname)s: %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ]
-    )
-
 def main():
-    parser = argparse.ArgumentParser(description='Find duplicates and copy unique files to new folder')
-    parser.add_argument('directory', help='Directory to search for duplicates')
-    parser.add_argument('--log', default='unique_files.log', help='Log file path')
-    
+    parser = AudioScriptArgumentParser(
+        description='Find duplicates and copy unique files to new folder'
+    )
     args = parser.parse_args()
     
+    # Validate directory
+    try:
+        validate_directory(args.directory)
+    except Exception as e:
+        logging.error(f"Directory validation failed: {str(e)}")
+        return
+    
+    # Configure logging
     setup_logging(args.log)
-    logging.info(f"Starting duplicate scan in {args.directory}")
+    logging.info(f"Starting duplicate scan")
+    logging.info(f"Directory: {args.directory}")
     
     duplicates = find_duplicates(args.directory)
     if duplicates:
@@ -124,7 +124,7 @@ def main():
         # Copy all files since there are no duplicates
         copy_uniques(args.directory, {})
     
-    logging.info("Unique files copy complete")
+    logging.info("Duplicate removal process complete")
 
 if __name__ == '__main__':
     main()

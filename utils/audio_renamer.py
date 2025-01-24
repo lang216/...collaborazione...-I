@@ -1,22 +1,15 @@
 import os
 import shutil
 import filetype
-import argparse
+import logging
 from pathlib import Path
 from tqdm import tqdm
-import logging
-
-def setup_logging(log_file='audio_renamer.log'):
-    """Configure logging"""
-    logging.basicConfig(
-        filename=log_file,
-        level=logging.INFO,
-        format='%(asctime)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ]
-    )
+from .shared_utils import (
+    setup_logging,
+    validate_directory,
+    get_audio_files,
+    AudioScriptArgumentParser
+)
 
 # Supported audio formats
 AUDIO_FORMATS = {
@@ -47,7 +40,7 @@ def process_audio_files(source_dir, target_dir):
     errors = 0
     
     # Get list of all audio files
-    audio_files = list(Path(source_dir).rglob('*.*'))
+    audio_files = get_audio_files(source_dir)
     
     # Process files with progress bar
     for file_path in tqdm(audio_files, desc="Processing files"):
@@ -78,35 +71,28 @@ def process_audio_files(source_dir, target_dir):
     return processed_files, errors
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Rename audio files with correct extensions based on their actual file type'
+    parser = AudioScriptArgumentParser(
+        description='Rename audio files with correct extensions'
     )
-    parser.add_argument('source_dir', help='Directory containing audio files to process')
     parser.add_argument('target_dir', help='Directory to save renamed files')
-    parser.add_argument('--log', default='audio_renamer.log', help='Path to log file')
     
     args = parser.parse_args()
     
-    # Validate directories
-    if not os.path.isdir(args.source_dir):
-        logging.error(f"Source directory does not exist: {args.source_dir}")
-        return
-        
-    if not os.path.isdir(args.target_dir):
-        logging.info(f"Creating target directory: {args.target_dir}")
-        os.makedirs(args.target_dir, exist_ok=True)
+    # Validate and setup directories
+    validate_directory(args.directory)
+    Path(args.target_dir).mkdir(parents=True, exist_ok=True)
     
     # Configure logging
     setup_logging(args.log)
-    logging.info(f"Starting audio renaming process in {args.source_dir}")
+    logging.info(f"Starting audio renaming process in {args.directory}")
     
     # Create target directory structure
     logging.info("Creating directory structure...")
-    create_mirror_structure(args.source_dir, args.target_dir)
+    create_mirror_structure(args.directory, args.target_dir)
     
     # Process files
     logging.info("Processing audio files...")
-    processed, errors = process_audio_files(args.source_dir, args.target_dir)
+    processed, errors = process_audio_files(args.directory, args.target_dir)
     
     # Log summary
     logging.info(f"Processing complete!")
