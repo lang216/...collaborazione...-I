@@ -28,10 +28,9 @@ MANIFEST
 *.swo
 
 # Audio processing outputs
-audio/Segmented_Audio/
-audio/Segmented_Audio_Filtered/
-tests/filtered_segments_dir_test/
-tests/Freesound_Matches_Test/
+audio/
+tests/
+
 
 # Cache and temp files
 .cache/

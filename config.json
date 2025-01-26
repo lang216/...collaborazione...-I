@@ -25,6 +25,14 @@
         "filtered_segments_dir": "audio/Segmented_Audio_Filtered",
         "filtered_segments_dir_test": "tests/Filtered_Segments_Dir_Test",
         "freesound_dir": "audio/Freesound_Matches",
-        "freesound_dir_test": "tests/Freesound_Matches_Test"
+        "freesound_dir_test": "tests/Freesound_Matches_Test",
+        "chord_output_dir": "audio/Chord_Outputs"
+    },
+    "chord_builder": {
+        "chord_input_dir": "audio/Audio_Chord_Materials",
+        "default_bit_depth": 16,
+        "generate_metadata": true,
+        "metadata_format": "txt",
+        "normalize_output": true
     }
 }
