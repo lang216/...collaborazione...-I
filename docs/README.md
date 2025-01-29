@@ -188,8 +188,8 @@ audio/
 ├── Segmented_Audio/             # Initial segmentation results
 └── Segmented_Audio_Filtered/    # Filtered segments after clustering
 
-output/                          # Generated chord files
-└── chord_[timestamp]/
+output/                          
+└── chord_[timestamp]/          # Generated chord files
     ├── stem_[note].wav         # Individual chord stems
     ├── mixed_chord.wav         # Mixed chord output
     └── metadata.json           # Processing details
@@ -217,11 +217,3 @@ tests/
 - Implement parallel processing where appropriate
 - Monitor memory usage with large audio files
 - Use progress bars for long-running operations
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request
