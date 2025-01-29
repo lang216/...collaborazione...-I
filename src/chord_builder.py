@@ -9,7 +9,7 @@ from config_utils import load_config
 import json
 from pathlib import Path
 import sys
-from chord_extract import extract_microtonal_sequence
+from chord_extract import extract_microtonal_sequence, ChordSegment
 
 def detect_original_note(audio_path: str, sr: int) -> int:
     """Detect the original note using improved pitch detection."""
@@ -28,7 +28,7 @@ def detect_original_note(audio_path: str, sr: int) -> int:
     cents = (midi_note - int(midi_note)) * 100
     return int(round(int(midi_note) * 100 + cents))
 
-def write_metadata(args, stem_paths: list[str], output_dir: str) -> None:
+def write_metadata(args, stem_paths: list[str], output_dir: str, duration: float = None) -> None:
     """Generate comprehensive metadata file."""
     metadata = {
         "timestamp": datetime.now().isoformat(),
@@ -42,6 +42,8 @@ def write_metadata(args, stem_paths: list[str], output_dir: str) -> None:
             "pitch_shifting": "RubberBand with formant preservation"
         }
     }
+    if duration is not None:
+        metadata["duration"] = duration
     
     metadata_path = os.path.join(output_dir, "metadata.json")
     with open(metadata_path, 'w') as f:
@@ -71,37 +73,58 @@ def extract_and_build_chords(y, native_sr, args, config):
     Extract chords using chord_extract and build stems.
     """
     num_chords_to_extract = args.extract_chords
-    chord_notes_sequence = extract_microtonal_sequence(args.chord_source, num_chords_to_extract)
+    num_voices = args.num_voices if hasattr(args, 'num_voices') and args.num_voices else 4
+    chord_segments = extract_microtonal_sequence(args.chord_source, num_chords_to_extract, num_voices=num_voices)
     
     all_stems = []
-    for i, chord_notes in enumerate(chord_notes_sequence):
+    for i, segment in enumerate(chord_segments):
         output_dir = create_output_dir(args.output_dir, base_dir_name=f"chord_sequence_{i+1}")
-        args.chord_notes = chord_notes
-        stems = process_chord_notes(y, native_sr, args, output_dir) # native_sr passed here
+        args.chord_notes = segment.notes
+        stems = process_chord_notes(y, native_sr, args, output_dir, target_duration=segment.duration)
         if stems:
-            mix_and_save(stems, y, native_sr, output_dir, config) # native_sr passed here
+            mix_and_save(stems, y, native_sr, output_dir, config, target_duration=segment.duration)
             if config['chord_builder']['generate_metadata']:
-                write_metadata(args, stems, output_dir)
+                write_metadata(args, stems, output_dir, duration=segment.duration)
         all_stems.extend(stems)
         
-    return chord_notes_sequence
+    return chord_segments
 
-def process_chord_notes(y: np.ndarray, native_sr: int, args, output_dir: str) -> list: # output_dir parameter 추가
-    """Process all chord notes and return stem paths"""
+def process_chord_notes(y: np.ndarray, native_sr: int, args, output_dir: str, target_duration: float = None) -> list:
+    """
+    Process all chord notes and return stem paths.
+    If target_duration is provided, time-stretch the output to match that duration.
+    """
     stems = []
     original_midi = args.original_note / 100.0
+    
+    # Time stretch the input audio if target_duration is provided and if difference is significant
+    if target_duration is not None:
+        current_duration = len(y) / native_sr
+        if abs(current_duration - target_duration) > 0.01:  # More reasonable tolerance (10ms)
+            time_scale = target_duration / current_duration
+            if abs(time_scale - 1.0) > 0.01:  # Only stretch if change is significant
+                y = rb.pyrb.time_stretch(
+                    y, native_sr,
+                    rate=time_scale,
+                    rbargs={
+                        "--formant": "",
+                        "--fine": "",
+                        "-c": "0",
+                        "--threads": ""
+                    }
+                )
     
     for note in args.chord_notes:
         target_midi = note / 100.0
         shift_cents = (target_midi - original_midi) * 100
         
         try:
-            y_shifted = precise_rubberband_shift(y, native_sr, shift_cents) # native_sr passed here
+            y_shifted = precise_rubberband_shift(y, native_sr, shift_cents)
             config = load_config()
             if config['chord_builder']['normalize_output']:
                 y_shifted = librosa.util.normalize(y_shifted)
                 
-            stem_path = save_stem(y_shifted, native_sr, note, output_dir) # native_sr passed here
+            stem_path = save_stem(y_shifted, native_sr, note, output_dir)
             stems.append(stem_path)
             
         except Exception as e:
@@ -117,51 +140,47 @@ def save_stem(y: np.ndarray, native_sr: int, note: int, output_dir: str) -> str:
     return stem_path
 
 def mix_and_save(stems: list, original: np.ndarray, native_sr: int, 
-                output_dir: str, config: dict) -> None:
-    """Mix stems with random time variations and gain staging"""
-    # Initialize with original length as baseline
-    max_length = len(original)
-    mixed = np.zeros(max_length)
+                output_dir: str, config: dict, target_duration: float = None) -> None:
+    """Mix stems with targeted duration and gain staging"""
+    # Initialize with target length if provided, otherwise use original length
+    if target_duration is not None:
+        target_samples = int(target_duration * native_sr)
+        max_length = target_samples
+    else:
+        max_length = len(original)
     
-    # Time stretch ranges (can be moved to config)
-    MIN_STRETCH = 0.995  # -0.5% 
-    MAX_STRETCH = 1.005  # +0.5%
+    mixed = np.zeros(max_length)
     
     for stem_path in stems:
         # Load stem
-        y, _ = librosa.load(stem_path, sr=native_sr) # Use native_sr here
+        y, _ = librosa.load(stem_path, sr=native_sr)
         
-        # Random time stretch factor
-        stretch_factor = np.random.uniform(MIN_STRETCH, MAX_STRETCH)
+        # Time stretch to match target duration if needed and if difference is significant
+        if target_duration is not None:
+            current_duration = len(y) / native_sr
+            if abs(current_duration - target_duration) > 0.01:  # More reasonable tolerance (10ms)
+                time_scale = target_duration / current_duration
+                if abs(time_scale - 1.0) > 0.01:  # Only stretch if change is significant
+                    y = rb.pyrb.time_stretch(
+                        y, native_sr,
+                        rate=time_scale,
+                        rbargs={
+                            "--formant": "",
+                            "--fine": "",
+                            "-c": "0",
+                            "--threads": ""
+                        }
+                    )
         
-        # Apply high-quality time stretch using RubberBand
-        y_stretched = rb.pyrb.time_stretch(
-            y=y, sr=native_sr, # Use native_sr here
-            rate=stretch_factor,
-            rbargs={
-                "--formant": "",  # Preserve formants
-                "--fine": "",     # High precision
-                "-c": "0",        
-                "--threads": ""
-            }
-        )
-        
-        # Update max length if needed
-        max_length = max(max_length, len(y_stretched))
-        
-        # Resize mixed buffer if needed
-        if len(y_stretched) > len(mixed):
-            mixed = np.pad(mixed, (0, len(y_stretched) - len(mixed)))
-            
-        # Add stretched stem to mix with gain
-        y_padded = librosa.util.fix_length(y_stretched, size=len(mixed))
+        # Ensure stem matches mixed buffer length
+        y_padded = librosa.util.fix_length(y, size=len(mixed))
         mixed += y_padded * 0.8  # Headroom for summation
     
     if config['chord_builder']['normalize_output']:
         mixed = librosa.util.normalize(mixed)
     
     mixed_path = os.path.join(output_dir, 'mixed_chord.wav')
-    sf.write(mixed_path, mixed, native_sr, subtype='PCM_24') # Use native_sr here
+    sf.write(mixed_path, mixed, native_sr, subtype='PCM_24')
     print(f"Saved mix: {mixed_path}")
 
 def create_output_dir(base_path: str, base_dir_name="chord") -> str:
@@ -215,7 +234,6 @@ def run_chord_builder(
         if num_voices != 4: # Only add if it's not the default value
             cmd_args.extend(['--num-voices', str(num_voices)])
 
-
     if original_note is not None:
         cmd_args.extend(['--original_note', str(original_note)])
     if detect_pitch:
@@ -232,28 +250,6 @@ def run_chord_builder(
     finally:
         # Restore original sys.argv
         sys.argv = old_argv
-
-def extract_and_build_chords(y, native_sr, args, config):
-    """
-    Extract chords using chord_extract and build stems.
-    """
-    num_chords_to_extract = args.extract_chords
-    num_voices = args.num_voices if hasattr(args, 'num_voices') and args.num_voices else 4 # Get num_voices from args, default to 4
-    chord_notes_sequence = extract_microtonal_sequence(args.chord_source, num_chords_to_extract, num_voices=num_voices)
-
-    all_stems = []
-    for i, chord_notes in enumerate(chord_notes_sequence):
-        output_dir = create_output_dir(args.output_dir, base_dir_name=f"chord_sequence_{i+1}")
-        args.chord_notes = chord_notes
-        stems = process_chord_notes(y, native_sr, args, output_dir) # native_sr passed here
-        if stems:
-            mix_and_save(stems, y, native_sr, output_dir, config) # native_sr passed here
-            if config['chord_builder']['generate_metadata']:
-                write_metadata(args, stems, output_dir)
-        all_stems.extend(stems)
-
-    return chord_notes_sequence
-
 
 def main():
     config = load_config()
@@ -285,14 +281,13 @@ def main():
     if not args.extract_chords and not args.chord_notes:
         parser.error("Either provide chord_notes or use --extract-chords")
 
-
     # Validation pipeline
     try:
         if not os.path.isfile(args.input_audio):
             raise FileNotFoundError(f"Audio file not found: {args.input_audio}")
 
         if args.detect_pitch:
-            args.original_note = detect_original_note(args.input_audio, 44100) # sr removed from detect_original_note
+            args.original_note = detect_original_note(args.input_audio, 44100)
             print(f"Detected pitch: {args.original_note}")
         elif not args.original_note:
             raise ValueError("Must specify --original_note or --detect-pitch")
@@ -310,7 +305,7 @@ def main():
         output_dir = create_output_dir(args.output_dir)
 
         if args.extract_chords:
-            chord_notes_sequence = extract_and_build_chords(y, native_sr, args, config)
+            chord_segments = extract_and_build_chords(y, native_sr, args, config)
         else: # process_chord_notes
             stems = process_chord_notes(y, native_sr, args, output_dir)
             if stems:
@@ -322,24 +317,14 @@ def main():
         print(f"Processing error: {str(e)}")
         return 1
 
-
-
-# # Example usage 1: Generate chord with manual notes
-# input_file_manual_notes = "audio/Audio_Chord_Materials/output_1 [2025-01-26 114602].wav"
-# run_chord_builder(
-#     input_audio=input_file_manual_notes,
-#     chord_notes=[6000, 6500, 6700],
-#     detect_pitch=True,
-# )
-
-# Example usage 2: Extract chords automatically
-input_file_extract_chords = "audio/Audio_Chord_Materials/components/output_1 [2025-01-26 114602].wav"
+# Example usage for automatic chord extraction
+input_file_extract_chords = "audio/Audio_Chord_Materials/components/piano_3.wav"
 run_chord_builder(
     input_audio=input_file_extract_chords,
-    extract_chords=3, # Extract 3 chords
-    chord_source="audio/Audio_Chord_Materials/sources/output.wav",
+    extract_chords=10,
+    chord_source="audio/Audio_Chord_Materials/sources/M4.wav",
     detect_pitch=True,
-    num_voices=5 # Extract 5 voices instead of default 4
+    num_voices=4
 )
 
 # if __name__ == "__main__":

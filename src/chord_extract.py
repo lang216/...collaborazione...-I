@@ -1,8 +1,19 @@
 import librosa
 import numpy as np
 from scipy.signal import find_peaks
+from dataclasses import dataclass
 
-def extract_microtonal_sequence(audio_path, num_chords, num_voices=4, min_freq=20, max_freq=5000):
+@dataclass
+class ChordSegment:
+    """Class to store chord notes and duration information."""
+    notes: list[int]  # OpenMusic format notes
+    duration: float   # Duration in seconds
+
+def extract_microtonal_sequence(audio_path, num_chords, num_voices=4, min_freq=40, max_freq=12000) -> list[ChordSegment]:
+    """
+    Extract a sequence of chords from audio with duration information.
+    Returns a list of ChordSegment objects containing notes and durations.
+    """
     y, sr = librosa.load(audio_path, sr=None)
     
     # Extract MFCC features for agglomerative clustering
@@ -28,7 +39,13 @@ def extract_microtonal_sequence(audio_path, num_chords, num_voices=4, min_freq=2
     
     sequence = []
     
-    for i, seg in enumerate(segments):
+    # Convert boundaries to sample indices and durations
+    boundary_samples = [librosa.frames_to_samples(b) for b in boundaries]
+    boundary_samples.append(len(y))  # Add end of audio
+    
+    for i, (start, end) in enumerate(zip(boundary_samples[:-1], boundary_samples[1:])):
+        seg = y[start:end]
+        duration = (end - start) / sr  # Duration in seconds
         if len(seg) < 10:  # Skip empty segments
             sequence.append([])
             continue
@@ -62,7 +79,7 @@ def extract_microtonal_sequence(audio_path, num_chords, num_voices=4, min_freq=2
             om = int(round(midi * 100))  # OpenMusic format
             om_notes.append(om)
         
-        sequence.append(om_notes)
+        sequence.append(ChordSegment(notes=om_notes, duration=duration))
     
     return sequence
 

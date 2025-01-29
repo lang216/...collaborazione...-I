@@ -26,13 +26,25 @@
         "filtered_segments_dir_test": "tests/Filtered_Segments_Dir_Test",
         "freesound_dir": "audio/Freesound_Matches",
         "freesound_dir_test": "tests/Freesound_Matches_Test",
-        "chord_output_dir": "audio/Chord_Outputs"
+        "chord_output_dir": "audio/Chord_Outputs",
+        "spray_notes_dir": "audio/Spray_Notes"
     },
     "chord_builder": {
-        "chord_input_dir": "audio/Audio_Chord_Materials",
+        "chord_input_dir": "audio/Audio_Chord_Materials/components",
         "default_bit_depth": 16,
         "generate_metadata": true,
         "metadata_format": "txt",
         "normalize_output": true
+    },
+    "spray_notes": {
+        "density_notes_per_second": 0.3,
+        "total_duration": 80,
+        "lower_freq": 30,
+        "upper_freq": 4200,
+        "min_note_duration": 0.05,
+        "max_note_duration": 0.5,
+        "min_velocity": 40,
+        "max_velocity": 127,
+        "output_filename": "spray.mid"
     }
 }

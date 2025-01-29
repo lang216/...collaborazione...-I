@@ -6,6 +6,38 @@ from typing import Dict, Any
 from dataclasses import dataclass
 
 @dataclass
+class SprayNotesConfig:
+    """Configuration for spray notes generation."""
+    density_notes_per_second: int
+    total_duration: int
+    lower_freq: float
+    upper_freq: float
+    min_note_duration: float
+    max_note_duration: float
+    min_velocity: int
+    max_velocity: int
+    output_filename: str
+    
+    def validate(self) -> None:
+        """Validate spray notes configuration parameters."""
+        if self.density_notes_per_second <= 0:
+            raise ValueError("density_notes_per_second must be positive")
+        if self.total_duration <= 0:
+            raise ValueError("total_duration must be positive")
+        if self.lower_freq <= 0 or self.upper_freq <= 0:
+            raise ValueError("frequencies must be positive")
+        if self.lower_freq >= self.upper_freq:
+            raise ValueError("upper_freq must be greater than lower_freq")
+        if self.min_note_duration <= 0 or self.max_note_duration <= 0:
+            raise ValueError("note durations must be positive")
+        if self.min_note_duration >= self.max_note_duration:
+            raise ValueError("max_note_duration must be greater than min_note_duration")
+        if not (0 <= self.min_velocity <= 127) or not (0 <= self.max_velocity <= 127):
+            raise ValueError("velocity must be between 0 and 127")
+        if self.min_velocity >= self.max_velocity:
+            raise ValueError("max_velocity must be greater than min_velocity")
+
+@dataclass
 class AudioConfig:
     """Configuration for audio processing parameters."""
     
@@ -74,4 +106,25 @@ def create_audio_config(config: Dict[str, Any]) -> AudioConfig:
         max_parallel_searches=config["freesound"]["max_parallel_searches"],
         min_results_per_file=config["freesound"]["min_results_per_file"],
         output_subfolder_format=config["freesound"]["output_subfolder_format"]
+    )
+
+def create_spray_notes_config(config: Dict[str, Any]) -> SprayNotesConfig:
+    """Create SprayNotesConfig from configuration dictionary.
+    
+    Args:
+        config: Configuration dictionary from load_config()
+        
+    Returns:
+        SprayNotesConfig instance with parameters from config
+    """
+    return SprayNotesConfig(
+        density_notes_per_second=config["spray_notes"]["density_notes_per_second"],
+        total_duration=config["spray_notes"]["total_duration"],
+        lower_freq=config["spray_notes"]["lower_freq"],
+        upper_freq=config["spray_notes"]["upper_freq"],
+        min_note_duration=config["spray_notes"]["min_note_duration"],
+        max_note_duration=config["spray_notes"]["max_note_duration"],
+        min_velocity=config["spray_notes"]["min_velocity"],
+        max_velocity=config["spray_notes"]["max_velocity"],
+        output_filename=config["spray_notes"]["output_filename"]
     )

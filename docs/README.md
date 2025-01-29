@@ -7,28 +7,75 @@
 
 ## Key Features
 
-- **Audio Segmentation**: Automatic segmentation of piano recordings using onset detection
+- **Audio Segmentation**: 
+  - Automatic segmentation using advanced onset detection with Audioflux
+  - Smart fade handling for clean segment transitions
+  - Memory-efficient processing with caching
+  - Parallel processing optimization
+
 - **Feature Extraction**: Comprehensive audio feature analysis including:
   - MFCC (Mel-frequency cepstral coefficients)
   - Spectral Centroid
   - Spectral Flatness
   - RMS Energy
-- **Clustering**: Hierarchical clustering of audio segments by feature similarity
-- **Freesound Integration**: Automated search for complementary sounds from Freesound.org
-- **Parallel Processing**: Optimized for multi-core CPUs using joblib
-- **Structured Output**: Organized storage of processed audio chunks by feature type and cluster
+  - Real-time feature visualization
+  - Parallel feature extraction with joblib
+
+- **Clustering**: 
+  - Hierarchical clustering of audio segments by feature similarity
+  - Automatic cluster validation
+  - Minimum file count enforcement per cluster
+  - Duration-based filtering
+
+- **MIDI Generation (Spray Notes)**:
+  - Probabilistic note generation
+  - Configurable frequency ranges
+  - Adjustable note density and duration
+  - Velocity randomization
+  - Automatic MIDI file creation
+
+- **Chord Processing**:
+  - Automatic chord extraction from source audio
+  - High-precision pitch shifting with formant preservation
+  - Support for up to 4 voices by default
+  - Time-stretching capabilities
+  - Comprehensive metadata generation
+
+- **Freesound Integration**: 
+  - Automated search for complementary sounds
+  - Duration-based filtering
+  - Feature-based matching
+
+- **Performance Optimization**:
+  - Memory caching for repeated operations
+  - Multi-core processing using joblib
+  - Efficient audio loading with librosa
+  - Progress tracking with tqdm
 
 ## System Workflow
 
-1. **Input**: Raw piano recordings in WAV format
-2. **Processing**:
-   - Audio segmentation using onset detection
-   - Feature extraction and clustering
-   - Duration-based filtering of audio chunks
-3. **Output**:
-   - Organized audio chunks by feature type and cluster
-   - Filtered audio chunks meeting duration requirements
-   - Complementary sounds from Freesound
+1. **Input Processing**:
+   - Raw piano recordings (WAV format)
+   - MIDI sources
+   - Audio chord materials
+
+2. **Audio Analysis**:
+   - Onset detection using Audioflux
+   - Multi-feature extraction in parallel
+   - Automatic segmentation with fade handling
+   - Duration-based filtering
+
+3. **Generation & Transformation**:
+   - Probabilistic MIDI note generation
+   - Chord extraction and building
+   - Feature-based clustering
+   - Complementary sound matching
+
+4. **Output**:
+   - Organized audio chunks by feature type
+   - Generated MIDI files
+   - Processed chord stems and mixes
+   - Matched Freesound samples
 
 ## Installation
 
@@ -54,7 +101,7 @@ The system uses a combination of `config.json` and `config_utils.py` for configu
 
 1. **Static Configuration** (`config.json`):
    - Contains all user-modifiable parameters
-   - Organized into sections for paths, segmentation, and freesound settings
+   - Organized into sections for paths, segmentation, and audio processing settings
    - Automatically validated on startup
 
 2. **Configuration Utilities** (`config_utils.py`):
@@ -73,48 +120,86 @@ Edit `config.json` to customize processing parameters:
     "input_dir": "audio/Audio_Raw_Materials",
     "segments_dir": "audio/Segmented_Audio",
     "filtered_segments_dir": "audio/Segmented_Audio_Filtered",
-    "freesound_dir": "tests/Freesound_Matches_Test"
+    "freesound_dir": "tests/Freesound_Matches_Test",
+    "chord_output_dir": "./output",
+    "spray_notes_dir": "./midi_output"
   },
   "segmentation": {
     "k_clusters": 5,
     "min_duration": 1.0,
-    "max_duration": 5.0
+    "max_duration": 5.0,
+    "fade_duration": 0.02
+  },
+  "spray_notes": {
+    "density_notes_per_second": 4.0,
+    "total_duration": 60,
+    "min_note_duration": 0.1,
+    "max_note_duration": 2.0,
+    "min_velocity": 60,
+    "max_velocity": 100,
+    "lower_freq": 20,
+    "upper_freq": 20000
   },
   "freesound": {
     "max_results": 5,
     "min_duration": 1.0,
     "max_duration": 5.0
+  },
+  "chord_builder": {
+    "normalize_output": true,
+    "generate_metadata": true
   }
 }
 ```
 
 ## Usage
 
-Run the main processing pipeline:
-
+### Main Processing Pipeline
 ```bash
 python src/main.py
 ```
 
-This will:
-1. Process all WAV files in the `audio/Audio_Raw_Materials` directory
-2. Save segmented audio chunks organized by feature type and cluster
-3. Filter chunks based on duration requirements
-4. Search Freesound for complementary sounds using filtered chunks
+This will process audio files through the complete pipeline.
+
+### MIDI Note Generation
+```bash
+python src/spray_notes.py
+```
+
+Generates probabilistic MIDI notes based on configured parameters.
+
+### Chord Generation and Extraction
+```bash
+# Manual chord building
+python src/chord_builder.py input.wav 6000 6500 6700 --detect-pitch
+
+# Automatic chord extraction
+python src/chord_builder.py input.wav --extract-chords 10 --chord-source source.wav
+```
+
+See [Chord Builder Documentation](docs/chord_builder_README.md) for detailed usage.
 
 ## Output Structure
-
-Processed audio is organized in the following directory structure:
 
 ```
 audio/
 ├── Audio_Raw_Materials/          # Input piano recordings
-├── Segmented_Audio/              # Initial segmentation results
-└── Segmented_Audio_Filtered/     # Filtered segments after clustering
+├── Audio_Chord_Materials/        # Chord source and component files
+├── Segmented_Audio/             # Initial segmentation results
+└── Segmented_Audio_Filtered/    # Filtered segments after clustering
+
+output/                          # Generated chord files
+└── chord_[timestamp]/
+    ├── stem_[note].wav         # Individual chord stems
+    ├── mixed_chord.wav         # Mixed chord output
+    └── metadata.json           # Processing details
+
+midi_output/                     # Generated MIDI files
+└── spray_notes_[timestamp].mid # Probabilistic note sequences
 
 tests/
-├── filtered_segments_dir_test/   # Test filtered segments
-└── Freesound_Matches_Test/       # Freesound search results
+├── filtered_segments_dir_test/  # Test filtered segments
+└── Freesound_Matches_Test/     # Freesound search results
 ```
 
 ## Development
@@ -125,6 +210,13 @@ tests/
 - Use type hints
 - Write docstrings for all public methods
 - Keep functions small and focused
+
+### Performance Considerations
+
+- Use memory caching for repeated operations
+- Implement parallel processing where appropriate
+- Monitor memory usage with large audio files
+- Use progress bars for long-running operations
 
 ## Contributing
 
