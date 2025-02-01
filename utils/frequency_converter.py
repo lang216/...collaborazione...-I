@@ -1,10 +1,9 @@
-import numpy as np
-import scipy.io.wavfile as wavfile
-import json
-import os
-import re
-from typing import List, Union, Final, Dict
+"""
+Module for converting OpenMusic stem numbers and musical pitch notation to frequencies.
+"""
+from typing import List, Union, Final, Dict, Optional
 from enum import Enum
+import re
 
 class Accidental(Enum):
     """Enumeration for musical accidental preference."""
@@ -38,10 +37,10 @@ __slots__ = []  # Optimize memory usage
 def validate_pitch_notation(pitch: str) -> None:
     """
     Validate that the pitch notation is properly formatted.
-
+    
     Args:
         pitch: The pitch notation to validate (e.g., 'A4', 'C#5', 'Bb3').
-
+        
     Raises:
         ValueError: If the pitch notation is invalid.
     """
@@ -55,13 +54,13 @@ def validate_pitch_notation(pitch: str) -> None:
 def validate_stem(stem: Union[int, float]) -> None:
     """
     Validate that the stem number is within a reasonable range.
-
+    
     The range -6000 to 18000 represents approximately 10 octaves around middle C,
     which covers the entire range of most musical instruments.
-
+    
     Args:
         stem: The stem number to validate.
-
+        
     Raises:
         ValueError: If the stem number is outside the reasonable range.
     """
@@ -74,27 +73,27 @@ def validate_stem(stem: Union[int, float]) -> None:
 def pitch_to_frequency(pitch: str) -> float:
     """
     Convert a musical pitch notation to its corresponding frequency.
-
+    
     Args:
         pitch: The pitch notation (e.g., 'A4', 'C#5', 'Bb3').
-
+    
     Returns:
         float: The frequency of the note in Hz, rounded to 3 decimal places.
-
+        
     Raises:
         ValueError: If the pitch notation is invalid.
     """
     validate_pitch_notation(pitch)
-
+    
     # Split pitch into note and octave
     match = re.match(r'([A-G][#b]?)(-?\d+)', pitch)
     note, octave = match.groups()
     octave = int(octave)
-
+    
     # Get MIDI note number
     base_midi = NOTE_TO_MIDI[note]
     midi_note = base_midi + ((octave + 1) * NOTES_PER_OCTAVE)
-
+    
     # Convert MIDI note to frequency using A4 (440 Hz) as reference
     frequency: float = A4_FREQUENCY * 2 ** ((midi_note - A4_MIDI) / NOTES_PER_OCTAVE)
     return round(frequency, 3)
@@ -102,43 +101,58 @@ def pitch_to_frequency(pitch: str) -> float:
 def stem_to_frequency(stem: Union[int, float]) -> float:
     """
     Convert a stem number to its corresponding musical frequency.
-
+    
     Args:
         stem: The stem number to convert.
-
+    
     Returns:
         float: The frequency of the note in Hz, rounded to 3 decimal places.
-
+        
     Raises:
         ValueError: If the stem number is outside the reasonable range.
     """
     validate_stem(stem)
-
+    
     # Calculate the semitone offset and corresponding MIDI note
     semitone_offset: float = round((stem - MIDDLE_C_STEM) / SEMITONE_UNIT)
     midi_note: float = MIDDLE_C_MIDI + semitone_offset
-
+    
     # Convert MIDI note number to frequency using A4 (440 Hz) as reference
     frequency: float = A4_FREQUENCY * 2 ** ((midi_note - A4_MIDI) / NOTES_PER_OCTAVE)
-
+    
     return round(frequency, 3)
 
-def parse_input(input_str: str) -> List[float]:
+def process_stems(stems: List[Union[int, float]]) -> List[float]:
     """
-    Parse space-separated numbers or pitch notations into a list of frequencies.
-
+    Convert a list of stem numbers to their corresponding musical frequencies.
+    
     Args:
-        input_str: String containing space-separated numbers or pitch notations.
-
+        stems: List of stem numbers.
+    
     Returns:
         List[float]: List of frequencies in Hz.
+        
+    Raises:
+        ValueError: If any stem number is invalid.
+    """
+    return [stem_to_frequency(stem) for stem in stems]
 
+def parse_input(input_str: str) -> List[Union[str, float]]:
+    """
+    Parse space-separated numbers or pitch notations into a list of frequencies.
+    
+    Args:
+        input_str: String containing space-separated numbers or pitch notations.
+        
+    Returns:
+        List[float]: List of frequencies in Hz.
+        
     Raises:
         ValueError: If the input contains invalid values.
     """
     values = input_str.split()
     frequencies = []
-
+    
     for value in values:
         try:
             # Try parsing as a numeric value first
@@ -152,127 +166,30 @@ def parse_input(input_str: str) -> List[float]:
                     f"Invalid input: {value}. Please enter either numeric stem values "
                     "or pitch notation (e.g., 'A4', 'C#5', 'Bb3') separated by spaces."
                 ) from e
-
+    
     return frequencies
 
-def generate_sine_tone(frequency, duration, sample_rate=44100, amplitude=0.8,
-                         amplitude_jitter_amount=0.0, jitter_frequency=5.0):
-    """
-    Generates a sine wave tone with smoother amplitude jitter and robust clipping prevention.
-    """
-    # Create time array
-    time = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
-
-    # Generate the base sine tone with higher amplitude
-    base_tone = amplitude * np.sin(2 * np.pi * frequency * time)
-
-    if amplitude_jitter_amount > 0:
-        # Determine number of jitter control points based on the jitter frequency
-        num_jitter_points = int(duration * jitter_frequency) + 1
-
-        # Times at which jitter values are defined
-        jitter_times = np.linspace(0, duration, num_jitter_points)
-
-        # Generate random jitter values between -1 and 1 for each control point
-        jitter_values = np.random.uniform(-1, 1, num_jitter_points)
-
-        # Smoothly interpolate these jitter values over the entire duration
-        amplitude_modulation = np.interp(time, jitter_times, jitter_values)
-
-        # Scale modulation and shift so that the base amplitude remains around 1
-        amplitude_modulation = 1 + amplitude_jitter_amount * amplitude_modulation
-
-        # Apply the smooth amplitude modulation to the base tone
-        tone = base_tone * amplitude_modulation
-    else:
-        tone = base_tone
-
-    # Only normalize if we're actually clipping
-    max_val = np.max(np.abs(tone))
-    if max_val > 1.0:
-        tone = tone / max_val
-
-    return tone
-
-def save_wav(tone, filename, sample_rate=44100):
-    """
-    Saves the given tone as a WAV file.
-    """
-    # Ensure the directory exists
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-
-    # Scale to full 16-bit range
-    int_tone = np.int16(tone * 32767)
-    wavfile.write(filename, sample_rate, int_tone)
-    print(f"Wave file saved as: {filename}")
-
-def load_config(config_file_path="config.json"):
-    """
-    Loads configuration from a JSON file.
-    """
-    try:
-        with open(config_file_path, 'r') as f:
-            config = json.load(f)
-        return config
-    except FileNotFoundError:
-        print(f"Error: Config file not found at '{config_file_path}'.")
-        return None
-    except json.JSONDecodeError:
-        print(f"Error: Invalid JSON format in '{config_file_path}'.")
-        return None
-
 def main() -> None:
-    """Command-line interface for sine tone generation with frequency input."""
-    config = load_config()
-
-    if not config:
-        return
-
-    sample_rate = config.get("audio", {}).get("sr", 44100)
-    sine_config = config.get("sine_tone_generator", {})
-    duration = sine_config.get("duration", 5.0)
-    amplitude_jitter_amount = sine_config.get("amplitude_jitter_amount", 0.0)
-    jitter_frequency = sine_config.get("jitter_frequency", 5.0)
-    output_dir = config.get("paths", {}).get("output_tone_file", "audio/Sine_Tones")
-
+    """Command-line interface for stem/pitch to frequency conversion."""
     try:
-        print("Enter frequency values or musical pitch notations separated by spaces.")
+        print("Enter values separated by spaces.")
         print("Accepted formats:")
         print("  - Stem numbers (e.g., 6000 6100 6200)")
         print("  - Pitch notation (e.g., A4 C#5 Bb3)")
         user_input = input("\nEnter values: ")
-
+        
         frequencies = parse_input(user_input)
-
+        
         print("\nResults:")
         print(f"{'Input':>8} | {'Frequency (Hz)':^15}")
         print("-" * 30)
-
-        for i, value in enumerate(user_input.split()):
-            frequency = frequencies[i]
+        for value, frequency in zip(user_input.split(), frequencies):
             print(f"{value:>8} | {frequency:^15.3f}")
-
-            filename = f"tone_{value.replace('#', 'sharp').replace('b', 'flat')}.wav"
-            full_path = os.path.join(output_dir, filename)
-
-            tone = generate_sine_tone(
-                frequency=frequency,
-                duration=duration,
-                sample_rate=sample_rate,
-                amplitude_jitter_amount=amplitude_jitter_amount,
-                jitter_frequency=jitter_frequency
-            )
-            save_wav(tone, full_path, sample_rate=sample_rate)
-
-        print("\nSine tones generated and saved successfully!")
-
+            
     except ValueError as e:
         print(f"Error: {e}")
     except KeyboardInterrupt:
         print("\nOperation cancelled by user.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
