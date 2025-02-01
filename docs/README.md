@@ -9,9 +9,9 @@ Audio segmentation and microtonal processing system for contemporary classical c
 
 ```python
 .
-├── config.json              # Main configuration
+├── config.json              # seg_match_main configuration
 ├── src/
-│   ├── main.py              # Primary processing pipeline
+│   ├── seg_match_main.py              # Primary processing pipeline
 │   ├── chord_builder.py     # Microtonal chord construction
 │   ├── chord_extract.py     # Chord sequence extraction
 │   ├── spray_notes.py       # Probabilistic MIDI generation
@@ -78,9 +78,9 @@ pip install -r requirements.txt[audio]
 ## Processing Pipeline
 
 1. Configure paths in config.json
-2. Run main segmentation process:
+2. Run seg_match_main segmentation process:
 ```bash
-python src/main.py --input-dir audio/Audio_Raw_Materials --bpm 72
+python src/seg_match_main.py --input-dir audio/Audio_Raw_Materials --bpm 72
 ```
 3. Generate chord sequences from segmented audio:
 ```bash
