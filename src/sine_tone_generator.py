@@ -1,27 +1,43 @@
 import numpy as np
 import scipy.io.wavfile as wavfile
 import json
+import os
 
-def generate_sine_tone(frequency, duration, sample_rate=44100, amplitude=0.5, amplitude_jitter_amount=0.0, jitter_frequency=5.0):
+def generate_sine_tone(frequency, duration, sample_rate=44100, amplitude=0.8, 
+                         amplitude_jitter_amount=0.0, jitter_frequency=5.0):
     """
     Generates a sine wave tone with smoother amplitude jitter and robust clipping prevention.
     """
-    time = np.linspace(0, duration, int(sample_rate * duration), False)
+    # Create time array
+    time = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+    
+    # Generate the base sine tone with higher amplitude
     base_tone = amplitude * np.sin(2 * np.pi * frequency * time)
 
     if amplitude_jitter_amount > 0:
-        jitter_rate = int(sample_rate / jitter_frequency)
-        num_jitter_points = int(len(time) / jitter_rate) + 1
-        jitter_envelope = np.random.uniform(-1, 1, num_jitter_points)
-        amplitude_modulation = np.repeat(jitter_envelope, jitter_rate)[:len(time)]
+        # Determine number of jitter control points based on the jitter frequency
+        num_jitter_points = int(duration * jitter_frequency) + 1
+        
+        # Times at which jitter values are defined
+        jitter_times = np.linspace(0, duration, num_jitter_points)
+        
+        # Generate random jitter values between -1 and 1 for each control point
+        jitter_values = np.random.uniform(-1, 1, num_jitter_points)
+        
+        # Smoothly interpolate these jitter values over the entire duration
+        amplitude_modulation = np.interp(time, jitter_times, jitter_values)
+        
+        # Scale modulation and shift so that the base amplitude remains around 1
         amplitude_modulation = 1 + amplitude_jitter_amount * amplitude_modulation
+        
+        # Apply the smooth amplitude modulation to the base tone
         tone = base_tone * amplitude_modulation
     else:
         tone = base_tone
 
-    # Robust Normalization: Always normalize AFTER jitter to prevent clipping
+    # Only normalize if we're actually clipping
     max_val = np.max(np.abs(tone))
-    if max_val > 0: # Avoid division by zero if tone is silent
+    if max_val > 1.0:
         tone = tone / max_val
 
     return tone
@@ -30,6 +46,10 @@ def save_wav(tone, filename, sample_rate=44100):
     """
     Saves the given tone as a WAV file.
     """
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    
+    # Scale to full 16-bit range
     int_tone = np.int16(tone * 32767)
     wavfile.write(filename, sample_rate, int_tone)
     print(f"Wave file saved as: {filename}")
@@ -54,14 +74,20 @@ if __name__ == "__main__":
 
     if config:
         try:
+            # Retrieve configuration values with defaults if not provided
             sample_rate = config.get("audio", {}).get("sr", 44100)
             sine_config = config.get("sine_tone_generator", {})
             frequency = sine_config.get("frequency", 440.0)
             duration = sine_config.get("duration", 5.0)
             amplitude_jitter_amount = sine_config.get("amplitude_jitter_amount", 0.0)
             jitter_frequency = sine_config.get("jitter_frequency", 5.0)
-            filename = sine_config.get("output_filename", "generated_tone_config.wav")
+            
+            # Use the output directory from config and join with filename
+            output_dir = config.get("paths", {}).get("output_tone_file", "audio/Sine_Tones")
+            filename = sine_config.get("output_filename", "generated_tone.wav")
+            full_path = os.path.join(output_dir, filename)
 
+            # Generate the tone with the optimized smoother jitter
             tone = generate_sine_tone(
                 frequency=frequency,
                 duration=duration,
@@ -69,9 +95,10 @@ if __name__ == "__main__":
                 amplitude_jitter_amount=amplitude_jitter_amount,
                 jitter_frequency=jitter_frequency
             )
-            save_wav(tone, filename, sample_rate=sample_rate)
+            save_wav(tone, full_path, sample_rate=sample_rate)
 
             print("Sine tone generated and saved successfully using config file settings!")
+            print(f"Full path: {os.path.abspath(full_path)}")
 
         except KeyError as e:
             print(f"Error: Missing configuration key: {e}.")
