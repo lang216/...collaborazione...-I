@@ -41,6 +41,18 @@
   - Time-stretching capabilities
   - Comprehensive metadata generation
 
+- **Sine Wave Generation**:
+  - Customizable sine tone generation with amplitude jitter
+  - Configurable frequency, duration, and sample rate
+  - Smart normalization to prevent clipping
+  - Amplitude modulation capabilities
+
+- **Musical Notation Tools**:
+  - OpenMusic stem number to musical note conversion
+  - Support for both sharp and flat notations
+  - Batch processing of stem numbers
+  - Command-line interface for quick conversions
+
 - **Freesound Integration**: 
   - Automated search for complementary sounds
   - Duration-based filtering
@@ -58,24 +70,29 @@
    - Raw piano recordings (WAV format)
    - MIDI sources
    - Audio chord materials
+   - OpenMusic stem numbers for notation
 
 2. **Audio Analysis**:
    - Onset detection using Audioflux
    - Multi-feature extraction in parallel
    - Automatic segmentation with fade handling
    - Duration-based filtering
+   - Sine wave tone generation
 
 3. **Generation & Transformation**:
    - Probabilistic MIDI note generation
    - Chord extraction and building
    - Feature-based clustering
    - Complementary sound matching
+   - Musical notation conversion
 
 4. **Output**:
    - Organized audio chunks by feature type
    - Generated MIDI files
    - Processed chord stems and mixes
    - Matched Freesound samples
+   - Generated sine wave tones
+   - Converted musical notation
 
 ## Installation
 
@@ -148,6 +165,13 @@ Edit `config.json` to customize processing parameters:
   "chord_builder": {
     "normalize_output": true,
     "generate_metadata": true
+  },
+  "sine_tone_generator": {
+    "frequency": 440.0,
+    "duration": 5.0,
+    "amplitude_jitter_amount": 0.0,
+    "jitter_frequency": 5.0,
+    "output_filename": "generated_tone.wav"
   }
 }
 ```
@@ -179,26 +203,40 @@ python src/chord_builder.py input.wav --extract-chords 10 --chord-source source.
 
 See [Chord Builder Documentation](docs/chord_builder_README.md) for detailed usage.
 
+### Sine Tone Generation
+```bash
+python src/sine_tone_generator.py
+```
+
+Generates sine wave tones with optional amplitude jitter based on configuration.
+
+### Musical Notation Conversion
+```bash
+python utils/pitch_converter.py
+```
+
+Interactive tool for converting OpenMusic stem numbers to musical notation.
+
 ## Output Structure
 
 ```
 audio/
-├── Audio_Raw_Materials/          # Input piano recordings
-├── Audio_Chord_Materials/        # Chord source and component files
-├── Segmented_Audio/             # Initial segmentation results
-└── Segmented_Audio_Filtered/    # Filtered segments after clustering
+├── Audio_Raw_Materials/         # Input piano recordings
+├── Audio_Chord_Materials/       # Chord source and component files
+├── Segmented_Audio/            # Initial segmentation results
+└── Segmented_Audio_Filtered/   # Filtered segments after clustering
 
 output/                          
-└── chord_[timestamp]/          # Generated chord files
-    ├── stem_[note].wav         # Individual chord stems
-    ├── mixed_chord.wav         # Mixed chord output
-    └── metadata.json           # Processing details
+└── chord_[timestamp]/         # Generated chord files
+    ├── stem_[note].wav        # Individual chord stems
+    ├── mixed_chord.wav        # Mixed chord output
+    └── metadata.json          # Processing details
 
-midi_output/                     # Generated MIDI files
+midi_output/                    # Generated MIDI files
 └── spray_notes_[timestamp].mid # Probabilistic note sequences
 
 tests/
-├── filtered_segments_dir_test/  # Test filtered segments
+├── filtered_segments_dir_test/ # Test filtered segments
 └── Freesound_Matches_Test/     # Freesound search results
 ```
 

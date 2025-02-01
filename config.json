@@ -27,7 +27,8 @@
         "freesound_dir": "audio/Freesound_Matches",
         "freesound_dir_test": "tests/Freesound_Matches_Test",
         "chord_output_dir": "audio/Chord_Outputs",
-        "spray_notes_dir": "audio/Spray_Notes"
+        "spray_notes_dir": "audio/Spray_Notes",
+         "output_tone_file": "audio/Sine_Tones"
     },
     "chord_builder": {
         "chord_input_dir": "audio/Audio_Chord_Materials/components",
@@ -46,5 +47,12 @@
         "min_velocity": 40,
         "max_velocity": 127,
         "output_filename": "spray.mid"
+    },
+    "sine_tone_generator": {
+        "frequency": 440.0,
+        "duration": 5.0,
+        "amplitude_jitter_amount": 0.3,
+        "jitter_frequency": 3.0,
+        "output_filename": "generated_tone.wav"
     }
 }
