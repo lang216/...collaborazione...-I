@@ -1,125 +1,133 @@
 # 🎹 Piano + Electronics Audio Processing System
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-Audio segmentation and microtonal processing system for contemporary classical composition
-
-## Core Architecture
-
-```python
-.
-├── config.json              # seg_match_main configuration
-├── src/
-│   ├── seg_match_main.py              # Primary processing pipeline
-│   ├── chord_builder.py     # Microtonal chord construction
-│   ├── chord_extract.py     # Chord sequence extraction
-│   ├── spray_notes.py       # Probabilistic MIDI generation
-│   ├── segmentation.py      # Audio segmentation logic
-│   └── config_utils.py      # Configuration management
-├── utils/
-│   ├── frequency_converter.py # Pitch/frequency conversions
-│   ├── pitch_converter.py   # OpenMusic notation tools
-│   └── audio_renamer.py     # File organization utilities
-├── audio/                   # Audio material hierarchy
-│   ├── Audio_Raw_Materials/
-│   ├── Segmented_Audio/
-│   └── Segmented_Audio_Filtered/
-└── docs/                    # Documentation
+A collection of Python scripts for audio processing, generation, and manipulation, tailored for contemporary classical composition workflows involving piano and electronics. Provides tools for microtonal chord generation, TTS measure counting, sine tone synthesis, MIDI generation, and audio file management.
 ```
 
-## Enhanced Features
 
-### Microtonal Processing (src/chord_extract.py)
-- Automatic chord sequence extraction from audio sources
-- Formant-preserving pitch shifting using RubberBand
-- Dynamic voice allocation (1-8 voices)
-- Spectral analysis-driven chord selection
 
-### Audio Segmentation
-- Multivariate onset detection (energy + spectral flux)
-- Adaptive fade curves based on segment content
-- Parallelized processing pipeline
+## Configuration (`config.json`)
 
-### Configuration Management
-```python
-# config_utils.py
-class ConfigManager:
-    def __init__(self):
-        self.schema = {
-            "paths": {
-                "input_dir": {"type": "str", "required": True},
-                "chord_output_dir": {"type": "str", "default": "./output"}
-            },
-            "segmentation": {
-                "k_clusters": {"type": "int", "min": 2, "max": 10}
-            }
-        }
-    
-    def validate(self, config):
-        # Type checking and constraint validation
-        ...
+This file centralizes settings used by various scripts. Create `config.json` in the project root if it doesn't exist.
+
+```json
+{
+  "audio": {
+    "sr": 44100,         // Default sample rate for processing (e.g., 44100, 48000, 96000)
+    "tts_sr": 24000      // Sample rate for TTS output
+  },
+  "paths": {
+    "input_dir": "audio/Audio_Raw_Materials", // Default input for some scripts
+    "output_tone_file": "audio/Sine_Tones",   // Default output for sine tones
+    "measure_audio_files": "audio/Measure_TTS", // Default output for measure TTS
+    "chord_output_dir": "output/chords",      // Base output for chord_builder
+    "chord_input_dir": "audio/Chord_Sources"  // Default input for chord_builder source extraction
+  },
+  "sine_tone_generator": {
+    "duration": 5.0,
+    "amplitude_jitter_amount": 0.1, // 0.0 to 1.0
+    "jitter_frequency": 5.0         // Hz
+  },
+  "chord_builder": {
+    "default_bit_depth": 24,       // e.g., 16, 24, 32
+    "normalize_output": true,      // Normalize generated stems/mixes
+    "generate_metadata": true      // Create metadata.json for each run
+  }
+  // Add sections for other configurable scripts as needed
+}
 ```
 
-## Installation & Setup
+The `src/config_utils.py` script provides functions to load and validate this configuration.
 
+## Core Tools (`src/`)
+
+### `chord_builder.py`
+Generates microtonal chords by pitch-shifting a single input audio note.
+- Can generate a single chord based on `--chord-notes` (list of target OpenMusic stem numbers).
+- Can extract a sequence of chords (notes + durations) from a `--chord-source` audio file using `chord_extract.py` logic, then generate stems/mixes for each segment.
+- Uses high-quality formant-preserving pitch shifting (RubberBand).
+- Features parallel processing, caching, optional pitch detection (`--detect-pitch`), and metadata generation.
+- Output is saved in timestamped subdirectories within the path specified by `config.json` (`paths.chord_output_dir`).
+
+**Usage (Single Chord):**
 ```bash
-# Clone with audio materials submodule
-git clone --recurse-submodules https://github.com/lang216/yuseok_piano_piece.git
-
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate
-
-# Install with audio processing extras
-pip install -r requirements.txt[audio]
+python src/chord_builder.py <input_audio> --original-note <stem> --chord-notes <stem1> <stem2> ... [options]
 ```
-
-## Processing Pipeline
-
-1. Configure paths in config.json
-2. Run seg_match_main segmentation process:
+**Usage (Chord Sequence Extraction):**
 ```bash
-python src/seg_match_main.py --input-dir audio/Audio_Raw_Materials --bpm 72
+python src/chord_builder.py <input_audio> --original-note <stem> --chord-source <source_audio> --extract-chords <count> [--num-voices <N>] [options]
 ```
-3. Generate chord sequences from segmented audio:
+*Common Options:*
+  * `--sr <hz>`: Processing sample rate (default from config).
+  * `--detect-pitch`: Auto-detect original note from `<input_audio>` instead of using `--original-note`.
+  * `--output-dir <path>`: Override base output directory from config.
+
+*Example (Single Chord):* Generate a C major chord (stems 6000, 6400, 6700) from `input.wav` (assuming it's Middle C, stem 6000):
 ```bash
-python src/chord_extract.py --source audio/Segmented_Audio --output output/chords
+python src/chord_builder.py audio/input.wav --original-note 6000 --chord-notes 6000 6400 6700
 ```
-4. Create MIDI spray notes:
+*Example (Sequence):* Extract 5 4-voice chords from `source.wav` and build them using `input.wav` (auto-detect pitch):
+```bash
+python src/chord_builder.py audio/input.wav --detect-pitch --chord-source audio/Chord_Sources/source.wav --extract-chords 5 --num-voices 4
+```
+
+### `chord_extract.py`
+Extracts sequences of microtonal chords from audio sources. Used internally by `chord_builder.py` but can potentially be used standalone.
+- Detects pitches with confidence scoring.
+- Returns `ChordSegment` objects containing notes (stems) and durations.
+
+**Usage (if standalone):**
+*(Requires understanding its library functions or if it has a direct CLI)*
+```bash
+# Example (Conceptual - verify actual usage if needed)
+python src/chord_extract.py --source <input_audio> --num-chords <count> --num-voices <N> --output <output_json>
+```
+
+### `measure_tts_generator.py`
+Generates spoken measure numbers using Text-to-Speech (Kokoro TTS).
+- Applies special formatting for numbers > 99 for clarity (e.g., 101 -> "1 O 1", 110 -> "1 ten").
+- Time-stretches audio to fit within a beat duration defined by BPM.
+- Output directory configurable via `config.json` (`paths.measure_audio_files`). Saves as `measure_XXX.wav`.
+
+**Usage:**
+```bash
+python src/measure_tts_generator.py --num_measures <count> --starting_measure <start_num> --bpm <tempo>
+```
+*Example:* Generate audio for measures 141 to 150 at 120 BPM:
+```bash
+python src/measure_tts_generator.py --num_measures 10 --starting_measure 141 --bpm 120
+```
+
+### `sine_tone_generator.py`
+Generates sine wave tones from frequency inputs.
+- Accepts input as OpenMusic stem numbers (e.g., `6000`) or standard pitch notation (e.g., `A4`, `C#5`).
+- Supports configurable duration, sample rate, amplitude jitter, and output directory (via args or `config.json`). Saves as `tone_<input_value>.wav`.
+
+**Usage:**
+```bash
+python src/sine_tone_generator.py <input_values...> [options]
+```
+*Options:*
+  * `--duration <sec>`: Tone duration (default from config).
+  * `--sample-rate <hz>`: Sample rate (default from config).
+  * `--jitter-amount <0.0-1.0>`: Amplitude jitter (default from config).
+  * `--jitter-frequency <hz>`: Jitter frequency (default from config).
+  * `--output-dir <path>`: Output directory (default from config `paths.output_tone_file`).
+*Example:* Generate 3-second tones for Middle C (stem 6000) and A4:
+```bash
+python src/sine_tone_generator.py 6000 A4 --duration 3.0
+```
+
+### `spray_notes.py`
+Generates probabilistic MIDI note sequences ("sprays").
+*(Further details on input/parameters might be needed for full documentation)*
+
+**Usage (based on previous README):**
+```bash
+python src/spray_notes.py [--duration <sec>] [--density <notes_per_sec>] [other_options]
+```
+*Example:* Generate a 300-second sequence with an average density of 4 notes per second:
 ```bash
 python src/spray_notes.py --duration 300 --density 4
 ```
 
-## Key Configuration Options
 
-| Section         | Parameter              | Type    | Default      | Description                  |
-|-----------------|------------------------|---------|--------------|------------------------------|
-| paths           | input_dir              | string  | (required)   | Raw audio source directory   |
-| segmentation    | k_clusters             | integer | 5            | Feature clusters for grouping|
-| spray_notes     | density_notes_per_sec  | float   | 4.0          | MIDI event density           |
-| chord_builder   | normalize_output       | boolean | True         | Peak normalization           |
-
-## Contribution Guidelines
-
-1. Branch naming: feature/description or fix/issue
-2. Type hints required for all new code
-3. Audio processing tests in tests/audio_processing
-4. Documentation updates in docs/ with:
-```bash
-python utils/generate_docs.py --update
-```
-
-## Analysis Tools
-
-```python
-# utils/frequency_converter.py
-def analyze_spectral_content(file_path):
-    """Extract harmonic profile for microtonal processing"""
-    y, sr = librosa.load(file_path)
-    S = np.abs(librosa.stft(y))
-    harmonics = librosa.effects.harmonic(y)
-    return {
-        'fundamental': librosa.yin(y, fmin=20, fmax=2000),
-        'inharmonicity': np.mean(S - harmonics)
-    }

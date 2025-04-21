@@ -45,3 +45,6 @@ db.sqlite3
 # Documentation
 docs/_build/
 /site
+
+# Future works
+/Future_Works

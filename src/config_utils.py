@@ -5,9 +5,11 @@ from pathlib import Path
 from typing import Dict, Any
 from dataclasses import dataclass
 
+
 @dataclass
 class SprayNotesConfig:
     """Configuration for spray notes generation."""
+
     density_notes_per_second: int
     total_duration: int
     lower_freq: float
@@ -17,9 +19,16 @@ class SprayNotesConfig:
     min_velocity: int
     max_velocity: int
     output_filename: str
-    
+
     def validate(self) -> None:
-        """Validate spray notes configuration parameters."""
+        """Validate the spray notes configuration parameters.
+
+        Ensures that numerical values are positive and within logical ranges
+        (e.g., max > min).
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         if self.density_notes_per_second <= 0:
             raise ValueError("density_notes_per_second must be positive")
         if self.total_duration <= 0:
@@ -37,27 +46,34 @@ class SprayNotesConfig:
         if self.min_velocity >= self.max_velocity:
             raise ValueError("max_velocity must be greater than min_velocity")
 
+
 @dataclass
 class AudioConfig:
     """Configuration for audio processing parameters."""
-    
+
     # Audio parameters
     sr: int
     mono: bool
     hop_length: int
     n_fft: int
-    
+
     # Feature parameters
     n_mfcc: int
-    
+
     # Freesound parameters
     duration_multiplier: float
     max_parallel_searches: int
     min_results_per_file: int
     output_subfolder_format: str
-    
+
     def validate(self) -> None:
-        """Validate configuration parameters."""
+        """Validate the audio configuration parameters.
+
+        Ensures that numerical values like FFT size, hop length, etc., are positive.
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
         if self.n_mfcc <= 0:
             raise ValueError("n_mfcc must be positive")
         if self.n_fft <= 0:
@@ -67,18 +83,25 @@ class AudioConfig:
         if self.max_parallel_searches <= 0:
             raise ValueError("max_parallel_searches must be positive")
 
+
 def load_config(config_path: Path = None) -> Dict[str, Any]:
     """Load configuration from JSON file.
-    
+
     Args:
-        config_path: Path to config.json. If None, looks in script directory.
-        
+        config_path: Optional path to the configuration JSON file. If None,
+                     it defaults to 'config.json' in the parent directory
+                     of this script's location.
+
     Returns:
-        Dictionary containing configuration parameters
+        A dictionary containing the loaded configuration parameters.
+
+    Raises:
+        FileNotFoundError: If the configuration file cannot be found.
+        ValueError: If the configuration file contains invalid JSON.
     """
     if config_path is None:
         config_path = Path(__file__).parent.parent / "config.json"
-    
+
     try:
         with open(config_path) as f:
             return json.load(f)
@@ -87,14 +110,19 @@ def load_config(config_path: Path = None) -> Dict[str, Any]:
     except json.JSONDecodeError:
         raise ValueError(f"Invalid JSON in configuration file: {config_path}")
 
+
 def create_audio_config(config: Dict[str, Any]) -> AudioConfig:
     """Create AudioConfig from configuration dictionary.
-    
+
     Args:
-        config: Configuration dictionary from load_config()
-        
+        config: The main configuration dictionary loaded via `load_config()`.
+
     Returns:
-        AudioConfig instance with parameters from config
+        An `AudioConfig` instance populated with parameters from the 'audio',
+        'features', and 'freesound' sections of the input dictionary.
+
+    Raises:
+        KeyError: If required keys are missing in the input config dictionary.
     """
     return AudioConfig(
         sr=config["audio"]["sr"],
@@ -105,17 +133,22 @@ def create_audio_config(config: Dict[str, Any]) -> AudioConfig:
         duration_multiplier=config["freesound"]["duration_multiplier"],
         max_parallel_searches=config["freesound"]["max_parallel_searches"],
         min_results_per_file=config["freesound"]["min_results_per_file"],
-        output_subfolder_format=config["freesound"]["output_subfolder_format"]
+        output_subfolder_format=config["freesound"]["output_subfolder_format"],
     )
+
 
 def create_spray_notes_config(config: Dict[str, Any]) -> SprayNotesConfig:
     """Create SprayNotesConfig from configuration dictionary.
-    
+
     Args:
-        config: Configuration dictionary from load_config()
-        
+        config: The main configuration dictionary loaded via `load_config()`.
+
     Returns:
-        SprayNotesConfig instance with parameters from config
+        A `SprayNotesConfig` instance populated with parameters from the
+        'spray_notes' section of the input dictionary.
+
+    Raises:
+        KeyError: If required keys are missing in the input config dictionary.
     """
     return SprayNotesConfig(
         density_notes_per_second=config["spray_notes"]["density_notes_per_second"],
@@ -126,5 +159,5 @@ def create_spray_notes_config(config: Dict[str, Any]) -> SprayNotesConfig:
         max_note_duration=config["spray_notes"]["max_note_duration"],
         min_velocity=config["spray_notes"]["min_velocity"],
         max_velocity=config["spray_notes"]["max_velocity"],
-        output_filename=config["spray_notes"]["output_filename"]
+        output_filename=config["spray_notes"]["output_filename"],
     )
